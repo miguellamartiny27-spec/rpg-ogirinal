@@ -11,6 +11,7 @@ export class WorldScene extends Phaser.Scene {
     this.createTextures();
     this.createWorld();
     this.createPlayer();
+    this.createCombat();
     this.createNpc();
     this.createControls();
     this.createHud();
@@ -128,6 +129,13 @@ export class WorldScene extends Phaser.Scene {
     grass.moveTo(12, 18); grass.lineTo(18, 7); grass.strokePath();
     grass.generateTexture("grass-tuft", 24, 20);
     grass.destroy();
+    const slime = this.make.graphics({ x: 0, y: 0, add: false });
+    slime.fillStyle(0x263c32); slime.fillEllipse(20, 30, 32, 10);
+    slime.fillStyle(0x526d45); slime.fillEllipse(20, 22, 34, 22);
+    slime.fillStyle(0x779455); slime.fillEllipse(16, 17, 22, 13);
+    slime.fillStyle(0xe8e2c4); slime.fillCircle(14, 20, 3); slime.fillCircle(27, 20, 3);
+    slime.fillStyle(0x26332f); slime.fillCircle(15, 21, 1.5); slime.fillCircle(28, 21, 1.5);
+    slime.generateTexture("wandering-slime", 40, 36); slime.destroy();
   }
 
   createWorld() {
@@ -280,6 +288,88 @@ export class WorldScene extends Phaser.Scene {
     this.player.body.setSize(18, 14).setOffset(7, 18);
     this.player.setMaxVelocity(155, 155);
     this.physics.add.collider(this.player, this.obstacles);
+  }
+
+  createCombat() {
+    this.playerStats = { health: 100, stamina: 100 };
+    this.playerBusy = false; this.isDodging = false; this.playerInvulnerable = false;
+    this.enemy = this.physics.add.sprite(1080, 610, "wandering-slime").setDepth(610);
+    this.enemy.body.setSize(27, 19).setOffset(6, 12);
+    this.enemy.setMaxVelocity(75, 75);
+    this.enemyStats = { health: 70, state: "idle" };
+    this.physics.add.collider(this.enemy, this.obstacles);
+    this.enemyName = this.add.text(1080, 568, "LODO ERRANTE", {
+      fontSize: "10px", color: "#f0dfb2", fontStyle: "bold", stroke: "#26372b", strokeThickness: 3
+    }).setOrigin(0.5).setDepth(620);
+    this.enemyBar = this.add.rectangle(1080, 580, 44, 5, 0x9b5147).setDepth(620);
+    this.combatKeys = this.input.keyboard.addKeys({ light: "J", heavy: "K", dodge: "SPACE" });
+  }
+
+  directionVector(dir) {
+    return { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0} }[dir] || {x:0,y:1};
+  }
+
+  performAttack(heavy = false) {
+    if (this.playerBusy || this.isDodging || this.playerStats.health <= 0) return;
+    const cost = heavy ? 28 : 14;
+    if (this.playerStats.stamina < cost) return;
+    this.playerStats.stamina -= cost; this.playerBusy = true; this.player.setVelocity(0,0);
+    const v = this.directionVector(this.lastHeroDirection);
+    const distance = Phaser.Math.Distance.Between(this.player.x,this.player.y,this.enemy.x,this.enemy.y);
+    const dx=this.enemy.x-this.player.x, dy=this.enemy.y-this.player.y;
+    const facing = distance ? (dx*v.x+dy*v.y)/distance : 0;
+    const slash=this.add.rectangle(this.player.x+v.x*34,this.player.y+v.y*34,heavy?54:42,heavy?28:20,heavy?0xe6c477:0xd9e4c0,0.6)
+      .setRotation(Math.atan2(v.y,v.x)).setDepth(this.player.y+8);
+    this.tweens.add({targets:slash,alpha:0,scaleX:1.3,duration:180,onComplete:()=>slash.destroy()});
+    if (this.enemy.active && this.enemyStats.health>0 && distance <= (heavy?76:60) && facing>0.35) {
+      this.enemyStats.health=Math.max(0,this.enemyStats.health-(heavy?34:18));
+      this.enemy.setTint(0xffffff); this.time.delayedCall(100,()=>{if(this.enemy.active)this.enemy.clearTint();});
+      this.enemyBar.setSize(44*this.enemyStats.health/70,5);
+      this.cameras.main.shake(70,0.0025);
+      if(this.enemyStats.health===0){
+        this.enemyStats.state="dead"; this.enemy.setVelocity(0,0); this.enemyName.setText("DERROTADO");
+        this.tweens.add({targets:[this.enemy,this.enemyName,this.enemyBar],alpha:0,duration:450,onComplete:()=>{
+          this.enemy.setActive(false).setVisible(false); this.enemyName.setVisible(false); this.enemyBar.setVisible(false);
+          this.time.delayedCall(5000,()=>{this.enemyStats.health=70;this.enemyStats.state="idle";this.enemy.setPosition(1080,610).setActive(true).setVisible(true).setAlpha(1);this.enemyName.setText("LODO ERRANTE").setVisible(true).setAlpha(1);this.enemyBar.setVisible(true).setAlpha(1).setSize(44,5);});
+        }});
+      }
+    }
+    this.time.delayedCall(heavy?560:330,()=>{this.playerBusy=false;});
+  }
+
+  dodge() {
+    if(this.playerBusy||this.isDodging||this.playerInvulnerable||this.playerStats.stamina<30||this.playerStats.health<=0)return;
+    this.playerStats.stamina-=30;this.isDodging=true;this.playerInvulnerable=true;
+    let v=new Phaser.Math.Vector2(this.touchDirection.x,this.touchDirection.y);
+    if(v.length()<0.2){const d=this.directionVector(this.lastHeroDirection);v.set(d.x,d.y);}
+    v.normalize();this.player.setVelocity(v.x*330,v.y*330).setAlpha(0.55);
+    this.time.delayedCall(190,()=>{this.isDodging=false;if(this.player.active)this.player.setVelocity(0,0).setAlpha(1);});
+    this.time.delayedCall(460,()=>{this.playerInvulnerable=false;if(this.player.active)this.player.setAlpha(1);});
+  }
+
+  damagePlayer(amount) {
+    if(this.playerInvulnerable||this.playerStats.health<=0)return;
+    this.playerStats.health=Math.max(0,this.playerStats.health-amount);this.playerInvulnerable=true;
+    this.player.setTint(0xffaaa0);this.cameras.main.shake(160,0.006);
+    this.time.delayedCall(650,()=>{this.playerInvulnerable=false;if(this.player.active)this.player.clearTint();});
+    if(this.playerStats.health===0){
+      this.playerBusy=true;this.player.setVelocity(0,0);
+      this.time.delayedCall(1300,()=>{this.player.setPosition(820,610).setAlpha(1).clearTint();this.playerStats.health=100;this.playerStats.stamina=100;this.playerBusy=false;this.playerInvulnerable=false;});
+    }
+  }
+
+  updateEnemy() {
+    if(!this.enemy.active||this.enemyStats.health<=0||this.playerStats.health<=0)return;
+    const dx=this.player.x-this.enemy.x,dy=this.player.y-this.enemy.y,d=Math.hypot(dx,dy);
+    this.enemyName.setPosition(this.enemy.x,this.enemy.y-42).setDepth(this.enemy.y+4);
+    this.enemyBar.setPosition(this.enemy.x,this.enemy.y-30).setDepth(this.enemy.y+4);
+    if(this.enemyStats.state==="windup"){this.enemy.setVelocity(0,0);return;}
+    if(d<290&&d>38){const v=new Phaser.Math.Vector2(dx,dy).normalize();this.enemy.setVelocity(v.x*58,v.y*58);this.enemyStats.state="chasing";}
+    else if(d<=38&&this.enemyStats.state!=="cooldown"){
+      this.enemy.setVelocity(0,0);this.enemyStats.state="windup";this.enemy.setTint(0xd4a16b);
+      this.time.delayedCall(520,()=>{if(!this.enemy.active||this.enemyStats.health<=0)return;this.enemy.clearTint();if(Phaser.Math.Distance.Between(this.enemy.x,this.enemy.y,this.player.x,this.player.y)<=52)this.damagePlayer(12);this.enemyStats.state="cooldown";this.time.delayedCall(850,()=>{if(this.enemy.active&&this.enemyStats.health>0)this.enemyStats.state="idle";});});
+    } else if(d>=290){this.enemy.setVelocity(0,0);this.enemyStats.state="idle";}
+    this.enemy.setDepth(this.enemy.y);
   }
 
   createNpc() {
@@ -442,6 +532,15 @@ export class WorldScene extends Phaser.Scene {
     }).setOrigin(0.5).setScrollFactor(0).setDepth(4200).setInteractive()
       .setVisible(false);
     this.talkButton.on("pointerdown", () => this.requestInteraction());
+    this.combatButtons=[];
+    const addCombatButton=(label,action,color)=>{
+      const bg=this.add.circle(0,0,29,color,0.92).setScrollFactor(0).setDepth(4300).setStrokeStyle(2,0xd8c99f,0.95).setInteractive();
+      const txt=this.add.text(0,0,label,{fontSize:"10px",color:"#fff3d5",fontStyle:"bold"}).setOrigin(0.5).setScrollFactor(0).setDepth(4301);
+      bg.on("pointerdown",action);this.combatButtons.push({bg,txt});
+    };
+    addCombatButton("GOLPE",()=>this.performAttack(false),0x526b48);
+    addCombatButton("FORTE",()=>this.performAttack(true),0x78513c);
+    addCombatButton("ROLAR",()=>this.dodge(),0x3c5c70);
   }
 
   updateJoystick(pointer) {
@@ -474,6 +573,8 @@ export class WorldScene extends Phaser.Scene {
     this.healthText = this.add.text(224, 47, "100/100", {
       fontSize: "10px", color: "#f4edda"
     }).setScrollFactor(0).setDepth(4002);
+    this.staminaTrack=this.add.rectangle(32,64,180,5,0x39463c).setOrigin(0).setScrollFactor(0).setDepth(4001);
+    this.staminaFill=this.add.rectangle(32,64,180,5,0x8cae65).setOrigin(0).setScrollFactor(0).setDepth(4002);
 
     this.keyboardHint = this.add.text(this.scale.width - 18, 20, "WASD / SETAS", {
       fontSize: "11px", color: "#e8d8ad", backgroundColor: "#14211fcc",
@@ -504,16 +605,19 @@ export class WorldScene extends Phaser.Scene {
     const panelX = mobile ? 14 : 18;
     const panelY = mobile ? 14 : 18;
     const panelW = mobile ? Math.min(width - 28, mobileLandscape ? 300 : 264) : 270;
-    const panelH = mobile ? 64 : 58;
+    const panelH = mobile ? 76 : 74;
     this.hudPanel.setPosition(panelX, panelY).setSize(panelW, panelH);
     this.hudTitle.setPosition(panelX + 14, panelY + 10)
       .setFontSize(mobile ? 12 : 12);
     const barWidth = mobile ? Math.min(mobileLandscape ? 172 : 144, panelW - 100) : 180;
-    this.healthTrack.setPosition(panelX + 14, panelY + 42).setSize(barWidth, 8);
-    this.healthFill.setPosition(panelX + 14, panelY + 42).setSize(barWidth, 8);
-    this.healthText.setPosition(panelX + 22 + barWidth, panelY + 39)
-      .setFontSize(mobile ? 10 : 10);
-    this.keyboardHint.setPosition(width - 18, 20).setVisible(!mobile);
+    this.healthTrack.setPosition(panelX+14,panelY+39).setSize(barWidth,7);
+    this.healthFill.setPosition(panelX+14,panelY+39).setSize(barWidth,7);
+    this.healthText.setPosition(panelX+22+barWidth,panelY+36).setFontSize(10);
+    this.staminaTrack.setPosition(panelX+14,panelY+54).setSize(barWidth,6);
+    this.staminaFill.setPosition(panelX+14,panelY+54).setSize(barWidth,6);
+    this.keyboardHint.setText("WASD • J/K • ESPAÇO").setPosition(width-18,20).setVisible(!mobile);
+    const combatY=height-(mobile?92:72), combatXs=[width-220,width-145,width-70];
+    this.combatButtons.forEach((b,i)=>{b.bg.setPosition(combatXs[i],combatY).setVisible(mobile);b.txt.setPosition(combatXs[i],combatY).setVisible(mobile);});
 
     const joystickX = mobile ? (mobileLandscape ? 92 : 82) : 58;
     const joystickY = height - (mobile ? (mobileLandscape ? 94 : 102) : 62);
@@ -523,7 +627,7 @@ export class WorldScene extends Phaser.Scene {
       this.joystickActive ? this.joystickKnob.y : joystickY
     ).setVisible(mobile);
 
-    this.talkButton.setPosition(width - (mobile ? 92 : 76), height - (mobile ? 88 : 72))
+    this.talkButton.setPosition(width - (mobile ? 92 : 76), height - (mobile ? 168 : 72))
       .setFontSize(mobile ? 14 : 12)
       .setPadding(mobile ? 18 : 14, mobile ? 15 : 12, mobile ? 18 : 14, mobile ? 15 : 12)
       .setVisible(mobile && (Boolean(this.getNearbyNpc()) || this.dialogOpen));
@@ -571,6 +675,14 @@ export class WorldScene extends Phaser.Scene {
       this.player.setVelocity(0, 0);
       return;
     }
+    if (Phaser.Input.Keyboard.JustDown(this.combatKeys.light)) this.performAttack(false);
+    if (Phaser.Input.Keyboard.JustDown(this.combatKeys.heavy)) this.performAttack(true);
+    if (Phaser.Input.Keyboard.JustDown(this.combatKeys.dodge)) this.dodge();
+    this.updateEnemy();
+    if(!this.playerBusy&&!this.isDodging)this.playerStats.stamina=Math.min(100,this.playerStats.stamina+delta*0.022);
+    const barW=this.isMobileLayout?Math.min(this.isMobileLandscape?172:144,Math.min(this.scale.width-28,this.isMobileLandscape?300:264)-100):180;
+    this.healthFill.setSize(barW*this.playerStats.health/100,7);
+    this.staminaFill.setSize(barW*this.playerStats.stamina/100,6);
     if (nearbyNpc) {
       this.npcPrompt.setText(`E  •  CONVERSAR COM ${nearbyNpc.title}`)
         .setPosition(this.scale.width / 2, this.isMobileLayout ? 86 : 104).setVisible(true);
@@ -588,7 +700,7 @@ export class WorldScene extends Phaser.Scene {
     }
 
     const direction = new Phaser.Math.Vector2(x, y).normalize();
-    this.player.setVelocity(direction.x * speed, direction.y * speed);
+    if(!this.isDodging&&!this.playerBusy)this.player.setVelocity(direction.x*speed,direction.y*speed);
     this.player.setDepth(this.player.y);
     if (x !== 0 || y !== 0) {
       const dir = Math.abs(x) > Math.abs(y) ? (x < 0 ? "left" : "right") : (y < 0 ? "up" : "down");
