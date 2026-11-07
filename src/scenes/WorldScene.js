@@ -15,6 +15,7 @@ export class WorldScene extends Phaser.Scene {
     this.createNpc();
     this.createControls();
     this.createHud();
+    this.createTutorialUI();
 
     this.cameras.main.setBounds(0, 0, WORLD.width, WORLD.height);
     this.cameras.main.startFollow(this.player, true, 0.09, 0.09);
@@ -319,6 +320,7 @@ export class WorldScene extends Phaser.Scene {
   createPlayer() {
     this.player = this.physics.add.sprite(820, 610, "hero-sheet", "down-0");
     this.player.setDepth(this.player.y);
+    this.updateTutorialProgress();
     this.player.setCollideWorldBounds(true);
     this.player.body.setSize(18, 14).setOffset(7, 18);
     this.player.setMaxVelocity(155, 155);
@@ -327,19 +329,14 @@ export class WorldScene extends Phaser.Scene {
 
   createCombat() {
     this.playerStats = { health: 100, stamina: 100 };
+    this.resources = { wood: 0, stone: 0 };
+    this.craftedItems = [];
+    this.weapon = null;
     this.lastAimVector = new Phaser.Math.Vector2(0, 1);
-    this.playerBusy = false; this.isDodging = false; this.playerInvulnerable = false;
-    this.enemy = this.physics.add.sprite(1080, 610, "wandering-slime").setDepth(610);
-    this.enemy.body.setSize(27, 19).setOffset(6, 12);
-    this.enemy.setMaxVelocity(75, 75);
-    this.enemyStats = { health: 70, state: "idle" };
-    this.physics.add.collider(this.enemy, this.obstacles);
-    this.enemyName = this.add.text(1080, 568, "LODO ERRANTE", {
-      fontSize: "10px", color: "#f0dfb2", fontStyle: "bold", stroke: "#26372b", strokeThickness: 3
-    }).setOrigin(0.5).setDepth(620);
-    this.enemyBar = this.add.rectangle(1080, 580, 44, 5, 0x9b5147).setDepth(620);
+    this.playerBusy = false;
+    this.isDodging = false;
+    this.playerInvulnerable = false;
     this.combatKeys = this.input.keyboard.addKeys({ light: "J", heavy: "K", dodge: "SPACE" });
-    this.createBoss();
   }
 
   createBoss() {
@@ -379,91 +376,47 @@ export class WorldScene extends Phaser.Scene {
   }
 
   performAttack(heavy = false) {
-    if (this.playerBusy || this.isDodging || this.playerStats.health <= 0) return;
+    if (this.playerBusy || this.isDodging || this.playerStats.health <= 0 || this.craftOpen) return;
     const cost = heavy ? 28 : 14;
     if (this.playerStats.stamina < cost) return;
-    this.playerStats.stamina -= cost; this.playerBusy = true; this.player.setVelocity(0,0);
-    // O golpe segue a direção atual do analógico (ou a última direção pressionada).
+    this.playerStats.stamina -= cost;
+    this.playerBusy = true;
+    this.player.setVelocity(0, 0);
     const aim = this.lastAimVector.clone().normalize();
-    const distance = Phaser.Math.Distance.Between(this.player.x,this.player.y,this.enemy.x,this.enemy.y);
-    const dx = this.enemy.x - this.player.x;
-    const dy = this.enemy.y - this.player.y;
-    const facing = distance > 0 ? (dx * aim.x + dy * aim.y) / distance : 1;
-    const reach = heavy ? 94 : 72;
     const slash = this.add.ellipse(
       this.player.x + aim.x * (heavy ? 42 : 34),
       this.player.y + aim.y * (heavy ? 42 : 34),
       heavy ? 66 : 52,
       heavy ? 30 : 23,
       heavy ? 0xe6c477 : 0xd9e4c0,
-      0.5
+      0.55
     ).setRotation(Math.atan2(aim.y, aim.x)).setDepth(this.player.y + 8);
     this.tweens.add({
       targets: slash, alpha: 0, scaleX: 1.28,
       duration: heavy ? 270 : 190, onComplete: () => slash.destroy()
     });
 
-    // Árvores recebem dano quando o jogador acerta o tronco na direção da mira.
+    let hitTree = false;
     this.trees.slice().forEach((tree) => {
       if (!tree.active) return;
       const tx = tree.x - this.player.x;
       const ty = (tree.y - 12) - this.player.y;
-      const treeDistance = Math.hypot(tx, ty);
-      const treeFacing = treeDistance > 0 ? (tx * aim.x + ty * aim.y) / treeDistance : 1;
-      if (treeDistance <= (heavy ? 112 : 88) && treeFacing >= 0.48) {
-        this.damageTree(tree, heavy ? 2 : 1, "player");
+      const distance = Math.hypot(tx, ty);
+      const facing = distance > 0 ? (tx * aim.x + ty * aim.y) / distance : 1;
+      if (distance <= (heavy ? 112 : 88) && facing >= 0.48) {
+        hitTree = true;
+        const damage = this.weapon ? (heavy ? 3 : 2) : (heavy ? 2 : 1);
+        this.damageTree(tree, damage, "player");
       }
     });
-
-    // Alcance frontal com uma abertura de aproximadamente 100 graus.
-    if (this.enemy.active && this.enemyStats.health > 0 &&
-        distance <= reach && facing >= 0.58) {
-      this.enemyStats.health=Math.max(0,this.enemyStats.health-(heavy?34:18));
-      this.enemy.setTint(0xffffff); this.time.delayedCall(100,()=>{if(this.enemy.active)this.enemy.clearTint();});
-      this.enemyBar.setSize(44*this.enemyStats.health/70,5);
-      this.cameras.main.shake(70,0.0025);
-      if(this.enemyStats.health===0){
-        this.enemyStats.state="dead"; this.enemy.setVelocity(0,0); this.enemyName.setText("DERROTADO");
-        this.tweens.add({targets:[this.enemy,this.enemyName,this.enemyBar],alpha:0,duration:450,onComplete:()=>{
-          this.enemy.setActive(false).setVisible(false); this.enemyName.setVisible(false); this.enemyBar.setVisible(false);
-          this.time.delayedCall(5000,()=>{this.enemyStats.health=70;this.enemyStats.state="idle";this.enemy.setPosition(1080,610).setActive(true).setVisible(true).setAlpha(1);this.enemyName.setText("LODO ERRANTE").setVisible(true).setAlpha(1);this.enemyBar.setVisible(true).setAlpha(1).setSize(44,5);});
-        }});
-      }
+    if (!hitTree) {
+      const hint = this.add.text(this.player.x, this.player.y - 38, "MIRE PARA UMA ÁRVORE", {
+        fontSize: "9px", color: "#f0dfb2", fontStyle: "bold",
+        stroke: "#26372b", strokeThickness: 3
+      }).setOrigin(0.5).setDepth(5000);
+      this.tweens.add({ targets: hint, y: hint.y - 18, alpha: 0, duration: 550, onComplete: () => hint.destroy() });
     }
-    if (this.boss && this.boss.active && this.bossStats.health > 0 && this.bossStats.state !== "phaseTransition") {
-      const bossDistance = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.boss.x, this.boss.y);
-      const bx = this.boss.x - this.player.x;
-      const by = this.boss.y - this.player.y;
-      const bossFacing = bossDistance > 0 ? (bx * aim.x + by * aim.y) / bossDistance : 1;
-      const bossReach = heavy ? 128 : 102;
-      if (bossDistance <= bossReach && bossFacing >= 0.42) {
-        this.bossStats.health = Math.max(0, this.bossStats.health - (heavy ? 34 : 18));
-        this.boss.setTint(0xffe0a0);
-        this.time.delayedCall(130, () => { if (this.boss.active && this.bossStats.health > 0) this.boss.clearTint(); });
-        this.bossHudFill.setSize(256 * this.bossStats.health / this.bossStats.maxHealth, 5);
-        this.cameras.main.shake(heavy ? 110 : 70, heavy ? 0.004 : 0.0025);
-        if (!this.bossStats.phaseTwo && this.bossStats.health <= this.bossStats.maxHealth * 0.5) {
-          this.enterBossPhaseTwo();
-        }
-        if (this.bossStats.health === 0) {
-          this.bossStats.state = "dead";
-          this.boss.setVelocity(0, 0);
-          this.bossName.setText("GUARDIÃO DERROTADO");
-          this.bossHudHint.setText("VITÓRIA");
-          this.tweens.add({
-            targets: [this.boss, this.bossName, this.bossWorldBarBack, this.bossWorldBar],
-            alpha: 0, duration: 900, onComplete: () => {
-              this.boss.setActive(false).setVisible(false);
-              this.bossName.setVisible(false);
-              this.bossWorldBarBack.setVisible(false);
-              this.bossWorldBar.setVisible(false);
-              this.time.delayedCall(12000, () => this.respawnBoss());
-            }
-          });
-        }
-      }
-    }
-    this.time.delayedCall(heavy?560:330,()=>{this.playerBusy=false;});
+    this.time.delayedCall(heavy ? 560 : 330, () => { this.playerBusy = false; });
   }
 
   dodge() {
@@ -562,6 +515,16 @@ export class WorldScene extends Phaser.Scene {
     const y = tree.y;
     this.obstacles.remove(tree, true, true);
     this.trees = this.trees.filter((item) => item !== tree);
+    if (source === "player") {
+      this.resources.wood += 2;
+      if (this.resourceText) this.resourceText.setText(`MADEIRA ${this.resources.wood}  •  PEDRA ${this.resources.stone}`);
+      const loot = this.add.text(x, y - 58, "+2 MADEIRA", {
+        fontSize: "10px", color: "#f0d49a", fontStyle: "bold",
+        stroke: "#38291f", strokeThickness: 3
+      }).setOrigin(0.5).setDepth(5000);
+      this.tweens.add({ targets: loot, y: loot.y - 24, alpha: 0, duration: 850, onComplete: () => loot.destroy() });
+      this.updateTutorialProgress();
+    }
 
     // O tronco cai e deixa um toco baixo, sem colisão.
     const stump = this.add.image(x, y - 3, "tree-stump").setDepth(y + 1);
@@ -862,7 +825,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   requestInteraction() {
-    if (this.dialogOpen) {
+    if (this.dialogOpen || this.craftOpen) {
       if (this.activeNpc && this.dialogIndex < this.activeNpc.dialogue.length - 1) {
         this.dialogIndex += 1;
         this.dialogText.setText(this.activeNpc.dialogue[this.dialogIndex]);
@@ -884,6 +847,104 @@ export class WorldScene extends Phaser.Scene {
     this.dialogText.setText(npc.dialogue[0]).setVisible(true);
     this.dialogHint.setText(npc.dialogue.length > 1 ? "E / TOQUE PARA AVANÇAR" : "E / TOQUE PARA FECHAR");
     [this.dialogPanel, this.dialogHint].forEach((item) => item.setVisible(true));
+  }
+
+  createTutorialUI() {
+    this.tutorialStage = 1;
+    this.tutorialStart = new Phaser.Math.Vector2(this.player.x, this.player.y);
+    this.tutorialPanel = this.add.rectangle(this.scale.width / 2, 92, 560, 70, 0x14211f, 0.92)
+      .setStrokeStyle(1, 0xc6a96d, 0.9).setScrollFactor(0).setDepth(4500);
+    this.tutorialPhaseText = this.add.text(this.scale.width / 2, 69, "ETAPA 1 DE 3  •  MOVIMENTAÇÃO", {
+      fontSize: "10px", color: "#e8c77e", fontStyle: "bold", letterSpacing: 1
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(4501);
+    this.tutorialText = this.add.text(this.scale.width / 2, 99,
+      "Use WASD ou as setas para caminhar. No celular, mova o analógico virtual.", {
+        fontSize: "11px", color: "#f4edda", align: "center",
+        wordWrap: { width: 520 }, lineSpacing: 3
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(4501);
+    this.resourceText = this.add.text(32, 100, "MADEIRA 0  •  PEDRA 0", {
+      fontSize: "10px", color: "#f0dfb2", fontStyle: "bold",
+      backgroundColor: "#14211fcc", padding: { x: 7, y: 5 }
+    }).setScrollFactor(0).setDepth(4500);
+    this.craftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+    this.craftOpen = false;
+    this.craftPanel = this.add.rectangle(this.scale.width / 2, this.scale.height / 2, 370, 224, 0x14211f, 0.98)
+      .setStrokeStyle(2, 0xc6a96d, 1).setScrollFactor(0).setDepth(6000).setVisible(false);
+    this.craftTitle = this.add.text(this.scale.width / 2, this.scale.height / 2 - 82, "BANCADA DE CRIAÇÃO", {
+      fontSize: "15px", color: "#e8c77e", fontStyle: "bold", letterSpacing: 1
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(6001).setVisible(false);
+    this.craftRecipeText = this.add.text(this.scale.width / 2, this.scale.height / 2 - 28,
+      "ESPADA DE MADEIRA\nCusto: 5 madeiras\nUma arma simples para melhorar seus golpes contra recursos.", {
+        fontSize: "12px", color: "#f4edda", align: "center",
+        lineSpacing: 7, wordWrap: { width: 330 }
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(6001).setVisible(false);
+    this.craftActionText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 55, "CRIAR ESPADA", {
+      fontSize: "12px", color: "#fff3d5", fontStyle: "bold",
+      backgroundColor: "#526b48", padding: { x: 18, y: 11 }
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(6002).setInteractive().setVisible(false);
+    this.craftActionText.on("pointerdown", () => this.craftWoodenSword());
+    this.craftCloseText = this.add.text(this.scale.width / 2 + 165, this.scale.height / 2 - 96, "X", {
+      fontSize: "13px", color: "#f0dfb2", fontStyle: "bold",
+      backgroundColor: "#53372f", padding: { x: 8, y: 5 }
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(6002).setInteractive().setVisible(false);
+    this.craftCloseText.on("pointerdown", () => this.toggleCrafting(false));
+    this.craftButton = this.add.text(0, 0, "CRIAR", {
+      fontSize: "11px", color: "#fff0c5", backgroundColor: "#526b48",
+      padding: { x: 15, y: 12 }, fontStyle: "bold"
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(4300).setInteractive().setVisible(false);
+    this.craftButton.on("pointerdown", () => this.toggleCrafting());
+  }
+
+  updateTutorialProgress() {
+    if (this.tutorialStage === 1) {
+      const travelled = Phaser.Math.Distance.Between(
+        this.tutorialStart.x, this.tutorialStart.y, this.player.x, this.player.y
+      );
+      if (travelled >= 120) {
+        this.tutorialStage = 2;
+        this.tutorialPhaseText.setText("ETAPA 2 DE 3  •  COLETA DE RECURSOS");
+        this.tutorialText.setText("Acerte as árvores para conseguir madeira. J ou GOLPE usa ataque leve; K ou FORTE causa mais dano.");
+      }
+    } else if (this.tutorialStage === 2 && this.resources.wood >= 5) {
+      this.tutorialStage = 3;
+      this.tutorialPhaseText.setText("ETAPA 3 DE 3  •  CRIAÇÃO DE EQUIPAMENTO");
+      this.tutorialText.setText("Você já tem madeira suficiente. Pressione C ou toque em CRIAR para abrir a bancada e fabricar sua primeira espada.");
+    } else if (this.tutorialStage === 4) {
+      this.tutorialPhaseText.setText("TUTORIAL CONCLUÍDO  •  PRIMEIRO EQUIPAMENTO");
+      this.tutorialText.setText("Espada de Madeira equipada! Ela fortalece seus golpes contra árvores. Explore a Clareira e continue evoluindo.");
+    }
+  }
+
+  toggleCrafting(force) {
+    this.craftOpen = typeof force === "boolean" ? force : !this.craftOpen;
+    [this.craftPanel, this.craftTitle, this.craftRecipeText,
+      this.craftActionText, this.craftCloseText].forEach((item) => item.setVisible(this.craftOpen));
+    if (this.craftOpen) {
+      const owned = this.craftedItems.includes("wooden-sword");
+      this.craftRecipeText.setText(owned
+        ? "ESPADA DE MADEIRA\nItem já fabricado e equipado.\nSeus golpes agora causam mais dano às árvores."
+        : `ESPADA DE MADEIRA\nCusto: 5 madeiras\nVocê tem: ${this.resources.wood} madeiras\nUma arma simples para melhorar seus golpes contra recursos.`);
+      this.craftActionText.setText(owned ? "FABRICADA" : (this.resources.wood >= 5 ? "CRIAR ESPADA" : "MADEIRA INSUFICIENTE"))
+        .setAlpha(owned ? 0.65 : 1);
+      this.player.setVelocity(0, 0);
+    }
+  }
+
+  craftWoodenSword() {
+    if (this.craftedItems.includes("wooden-sword")) return;
+    if (this.resources.wood < 5) {
+      this.craftRecipeText.setText(`Faltam ${5 - this.resources.wood} madeiras. Derrube mais árvores usando seus ataques.`);
+      return;
+    }
+    this.resources.wood -= 5;
+    this.craftedItems.push("wooden-sword");
+    this.weapon = "wooden-sword";
+    this.resourceText.setText(`MADEIRA ${this.resources.wood}  •  PEDRA ${this.resources.stone}`);
+    this.tutorialStage = 4;
+    this.updateTutorialProgress();
+    this.craftRecipeText.setText("ESPADA DE MADEIRA\nCriada e equipada! Seus ataques agora causam mais dano às árvores.");
+    this.craftActionText.setText("EQUIPADA").setAlpha(0.65);
+    this.cameras.main.flash(180, 205, 184, 115);
   }
 
   createControls() {
@@ -1009,12 +1070,6 @@ export class WorldScene extends Phaser.Scene {
     this.staminaTrack.setPosition(panelX+14,panelY+54).setSize(barWidth,6);
     this.staminaFill.setPosition(panelX+14,panelY+54).setSize(barWidth,6);
     this.keyboardHint.setText("WASD • J/K • ESPAÇO").setPosition(width-18,20).setVisible(!mobile);
-    const bossHudY = mobile ? (mobileLandscape ? 18 : 100) : 18;
-    this.bossHudName.setPosition(width / 2, bossHudY);
-    this.bossHudBack.setPosition(width / 2, bossHudY + 21).setSize(Math.min(260, width - 48), 9);
-    this.bossHudFill.setPosition(width / 2 - Math.min(128, (width - 48) / 2 - 2), bossHudY + 21)
-      .setSize(Math.min(256, width - 52) * this.bossStats.health / this.bossStats.maxHealth, 5);
-    this.bossHudHint.setPosition(width / 2, bossHudY + 35);
     const combatY=height-(mobile?92:72), combatXs=[width-220,width-145,width-70];
     this.combatButtons.forEach((b,i)=>{b.bg.setPosition(combatXs[i],combatY).setVisible(mobile);b.txt.setPosition(combatXs[i],combatY).setVisible(mobile);});
 
@@ -1051,6 +1106,21 @@ export class WorldScene extends Phaser.Scene {
 
     this.npcPrompt.setPosition(width / 2, mobile ? 86 : 104)
       .setFontSize(mobile ? 9 : 11);
+    this.tutorialPanel.setPosition(width / 2, mobile ? (mobileLandscape ? 112 : 130) : 92)
+      .setSize(Math.min(width - 28, mobile ? 520 : 560), mobile ? 76 : 70);
+    this.tutorialPhaseText.setPosition(width / 2, mobile ? (mobileLandscape ? 88 : 106) : 69);
+    this.tutorialText.setPosition(width / 2, mobile ? (mobileLandscape ? 119 : 137) : 99)
+      .setWordWrapWidth(Math.min(width - 54, mobile ? 470 : 520));
+    this.resourceText.setPosition(panelX + 14, panelY + panelH + 8);
+    this.craftButton.setPosition(width - (mobile ? 88 : 86), height - (mobile ? 166 : 72))
+      .setVisible(mobile);
+    const craftW = Math.min(width - 28, mobile ? 320 : 370);
+    const craftY = height / 2;
+    this.craftPanel.setPosition(width / 2, craftY).setSize(craftW, 224);
+    this.craftTitle.setPosition(width / 2, craftY - 82);
+    this.craftRecipeText.setPosition(width / 2, craftY - 28).setWordWrapWidth(craftW - 36);
+    this.craftActionText.setPosition(width / 2, craftY + 55);
+    this.craftCloseText.setPosition(width / 2 + craftW / 2 - 18, craftY - 96);
   }
 
   update(time, delta) {
@@ -1068,6 +1138,7 @@ export class WorldScene extends Phaser.Scene {
       this.requestInteraction();
     }
 
+    if (Phaser.Input.Keyboard.JustDown(this.craftKey)) this.toggleCrafting();
     const nearbyNpc = this.getNearbyNpc();
     this.talkButton.setVisible(this.isMobileLayout && (Boolean(nearbyNpc) || this.dialogOpen));
     if (this.dialogOpen) {
@@ -1077,8 +1148,6 @@ export class WorldScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.combatKeys.light)) this.performAttack(false);
     if (Phaser.Input.Keyboard.JustDown(this.combatKeys.heavy)) this.performAttack(true);
     if (Phaser.Input.Keyboard.JustDown(this.combatKeys.dodge)) this.dodge();
-    this.updateEnemy();
-    this.updateBoss();
     if(!this.playerBusy&&!this.isDodging)this.playerStats.stamina=Math.min(100,this.playerStats.stamina+delta*0.022);
     const barW=this.isMobileLayout?Math.min(this.isMobileLandscape?172:144,Math.min(this.scale.width-28,this.isMobileLandscape?300:264)-100):180;
     this.healthText.setText(`${Math.ceil(this.playerStats.health)}/100`);
