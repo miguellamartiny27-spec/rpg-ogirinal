@@ -15,7 +15,7 @@ export class MenuScene extends Phaser.Scene {
 
     this.add.text(width / 2, height * 0.29, "RPG", {
       fontFamily: "Georgia, serif",
-      fontSize: "clamp(42px, 9vw, 76px)",
+      fontSize: Math.min(76, Math.max(42, width * 0.08)) + "px",
       color: "#e8d6a5",
       fontStyle: "bold",
       stroke: "#24352d",
@@ -24,7 +24,7 @@ export class MenuScene extends Phaser.Scene {
 
     this.add.text(width / 2, height * 0.42, "ORIGINAL", {
       fontFamily: "Arial, sans-serif",
-      fontSize: "clamp(18px, 3vw, 26px)",
+      fontSize: Math.max(18, width * 0.027) + "px",
       color: "#a9c69b",
       letterSpacing: 8
     }).setOrigin(0.5);
