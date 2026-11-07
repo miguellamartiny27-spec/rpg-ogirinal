@@ -361,10 +361,66 @@ export class WorldScene extends Phaser.Scene {
       v.set(d.x, d.y);
     }
     v.normalize();
-    this.player.setVelocity(v.x * 285, v.y * 285).setAlpha(0.78);
+
+    // Rastro direcional: deixa claro quando a esquiva começou e para onde foi.
+    const angle = Math.atan2(v.y, v.x);
+    const streak = this.add.ellipse(
+      this.player.x - v.x * 17,
+      this.player.y - v.y * 17,
+      54,
+      15,
+      0x9deaff,
+      0.78
+    ).setRotation(angle).setDepth(this.player.y - 2);
+    this.tweens.add({
+      targets: streak,
+      alpha: 0,
+      scaleX: 1.65,
+      scaleY: 0.7,
+      duration: 260,
+      onComplete: () => streak.destroy()
+    });
+
+    const burst = this.add.circle(this.player.x, this.player.y + 8, 13, 0xb8efff, 0.48)
+      .setDepth(this.player.y - 1);
+    this.tweens.add({
+      targets: burst,
+      alpha: 0,
+      scale: 2.5,
+      duration: 240,
+      onComplete: () => burst.destroy()
+    });
+
+    this.player.setVelocity(v.x * 285, v.y * 285).setTint(0xb9edff).setAlpha(0.96);
+
+    // Silhuetas curtas mostram a velocidade sem esconder o personagem.
+    [0, 65, 130, 195].forEach((delay) => {
+      this.time.delayedCall(delay, () => {
+        if (!this.player.active || !this.isDodging) return;
+        const ghost = this.add.image(
+          this.player.x,
+          this.player.y,
+          this.player.texture.key,
+          this.player.frame.name
+        ).setTint(0x8edfff).setAlpha(0.5).setScale(1.08).setDepth(this.player.y - 1);
+        this.tweens.add({
+          targets: ghost,
+          alpha: 0,
+          scaleX: 0.84,
+          scaleY: 0.84,
+          x: ghost.x - v.x * 13,
+          y: ghost.y - v.y * 13,
+          duration: 210,
+          onComplete: () => ghost.destroy()
+        });
+      });
+    });
+
     this.time.delayedCall(260, () => {
       this.isDodging = false;
-      if (this.player.active) this.player.setVelocity(0, 0).setAlpha(1);
+      if (this.player.active) {
+        this.player.setVelocity(0, 0).setAlpha(1).clearTint();
+      }
     });
     this.time.delayedCall(370, () => {
       this.playerInvulnerable = false;
