@@ -292,6 +292,7 @@ export class WorldScene extends Phaser.Scene {
 
   createCombat() {
     this.playerStats = { health: 100, stamina: 100 };
+    this.lastAimVector = new Phaser.Math.Vector2(0, 1);
     this.playerBusy = false; this.isDodging = false; this.playerInvulnerable = false;
     this.enemy = this.physics.add.sprite(1080, 610, "wandering-slime").setDepth(610);
     this.enemy.body.setSize(27, 19).setOffset(6, 12);
@@ -314,14 +315,14 @@ export class WorldScene extends Phaser.Scene {
     const cost = heavy ? 28 : 14;
     if (this.playerStats.stamina < cost) return;
     this.playerStats.stamina -= cost; this.playerBusy = true; this.player.setVelocity(0,0);
-    const v = this.directionVector(this.lastHeroDirection);
     const distance = Phaser.Math.Distance.Between(this.player.x,this.player.y,this.enemy.x,this.enemy.y);
-    const dx=this.enemy.x-this.player.x, dy=this.enemy.y-this.player.y;
-    const facing = distance ? (dx*v.x+dy*v.y)/distance : 0;
-    const slash=this.add.rectangle(this.player.x+v.x*34,this.player.y+v.y*34,heavy?54:42,heavy?28:20,heavy?0xe6c477:0xd9e4c0,0.6)
-      .setRotation(Math.atan2(v.y,v.x)).setDepth(this.player.y+8);
-    this.tweens.add({targets:slash,alpha:0,scaleX:1.3,duration:180,onComplete:()=>slash.destroy()});
-    if (this.enemy.active && this.enemyStats.health>0 && distance <= (heavy?76:60) && facing>0.35) {
+    const radius = heavy ? 86 : 68;
+    // Golpe em área: o arco fecha 360 graus ao redor do personagem.
+    const slash=this.add.circle(this.player.x,this.player.y,radius,heavy?0xe6c477:0xd9e4c0,0.13)
+      .setStrokeStyle(heavy?8:5,heavy?0xe6c477:0xd9e4c0,0.95)
+      .setDepth(this.player.y+8);
+    this.tweens.add({targets:slash,alpha:0,scale:1.16,duration:heavy?270:190,onComplete:()=>slash.destroy()});
+    if (this.enemy.active && this.enemyStats.health>0 && distance <= radius) {
       this.enemyStats.health=Math.max(0,this.enemyStats.health-(heavy?34:18));
       this.enemy.setTint(0xffffff); this.time.delayedCall(100,()=>{if(this.enemy.active)this.enemy.clearTint();});
       this.enemyBar.setSize(44*this.enemyStats.health/70,5);
@@ -340,11 +341,21 @@ export class WorldScene extends Phaser.Scene {
   dodge() {
     if(this.playerBusy||this.isDodging||this.playerInvulnerable||this.playerStats.stamina<30||this.playerStats.health<=0)return;
     this.playerStats.stamina-=30;this.isDodging=true;this.playerInvulnerable=true;
-    let v=new Phaser.Math.Vector2(this.touchDirection.x,this.touchDirection.y);
-    if(v.length()<0.2){const d=this.directionVector(this.lastHeroDirection);v.set(d.x,d.y);}
-    v.normalize();this.player.setVelocity(v.x*330,v.y*330).setAlpha(0.55);
-    this.time.delayedCall(190,()=>{this.isDodging=false;if(this.player.active)this.player.setVelocity(0,0).setAlpha(1);});
-    this.time.delayedCall(460,()=>{this.playerInvulnerable=false;if(this.player.active)this.player.setAlpha(1);});
+    const v = this.lastAimVector.clone();
+    if (v.length() < 0.2) {
+      const d = this.directionVector(this.lastHeroDirection);
+      v.set(d.x, d.y);
+    }
+    v.normalize();
+    this.player.setVelocity(v.x * 285, v.y * 285).setAlpha(0.78);
+    this.time.delayedCall(260, () => {
+      this.isDodging = false;
+      if (this.player.active) this.player.setVelocity(0, 0).setAlpha(1);
+    });
+    this.time.delayedCall(370, () => {
+      this.playerInvulnerable = false;
+      if (this.player.active) this.player.setAlpha(1);
+    });
   }
 
   damagePlayer(amount) {
@@ -496,10 +507,10 @@ export class WorldScene extends Phaser.Scene {
 
   createControls() {
     this.input.addPointer(2);
-    this.joystickBase = this.add.circle(0, 0, 58, 0x17231e, 0.66)
+    this.joystickBase = this.add.circle(0, 0, 64, 0x17231e, 0.72)
       .setScrollFactor(0).setDepth(3000)
       .setStrokeStyle(2, 0xc6b27d, 0.9).setInteractive();
-    this.joystickKnob = this.add.circle(0, 0, 25, 0xd8c99f, 0.9)
+    this.joystickKnob = this.add.circle(0, 0, 27, 0xd8c99f, 0.94)
       .setScrollFactor(0).setDepth(3001)
       .setStrokeStyle(2, 0x354936, 0.95);
     this.joystickActive = false;
@@ -548,13 +559,13 @@ export class WorldScene extends Phaser.Scene {
     const dx = pointer.x - this.joystickBase.x;
     const dy = pointer.y - this.joystickBase.y;
     const distance = Math.hypot(dx, dy);
-    const maxDistance = 39;
+    const maxDistance = 45;
     const scale = distance > maxDistance ? maxDistance / distance : 1;
     const knobX = this.joystickBase.x + dx * scale;
     const knobY = this.joystickBase.y + dy * scale;
     this.joystickKnob.setPosition(knobX, knobY);
-    this.touchDirection.x = distance > 7 ? (knobX - this.joystickBase.x) / maxDistance : 0;
-    this.touchDirection.y = distance > 7 ? (knobY - this.joystickBase.y) / maxDistance : 0;
+    this.touchDirection.x = distance > 6 ? (knobX - this.joystickBase.x) / maxDistance : 0;
+    this.touchDirection.y = distance > 6 ? (knobY - this.joystickBase.y) / maxDistance : 0;
   }
 
   createHud() {
@@ -701,7 +712,13 @@ export class WorldScene extends Phaser.Scene {
       y = this.touchDirection.y;
     }
 
-    const direction = new Phaser.Math.Vector2(x, y).normalize();
+    const direction = new Phaser.Math.Vector2(x, y);
+    if (direction.length() > 0.12) {
+      direction.normalize();
+      this.lastAimVector.set(direction.x, direction.y);
+    } else {
+      direction.set(0, 0);
+    }
     if(!this.isDodging&&!this.playerBusy)this.player.setVelocity(direction.x*speed,direction.y*speed);
     this.player.setDepth(this.player.y);
     if (x !== 0 || y !== 0) {
