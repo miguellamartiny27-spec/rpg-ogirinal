@@ -525,8 +525,20 @@ export class WorldScene extends Phaser.Scene {
     this.bossWorldBarBack.setPosition(this.boss.x, this.boss.y - 49).setDepth(this.boss.y + 20);
     this.bossWorldBar.setPosition(this.boss.x, this.boss.y - 49).setDepth(this.boss.y + 21);
 
+    if (this.bossStats.state === "charging") {
+      if (!this.bossStats.hitDuringCharge && distance <= 64) {
+        this.bossStats.hitDuringCharge = true;
+        this.damagePlayer(28);
+        this.boss.setVelocity(0, 0);
+        this.bossStats.state = "recovery";
+        this.time.delayedCall(1050, () => {
+          if (this.boss.active && this.bossStats.health > 0) this.bossStats.state = "chasing";
+        });
+      }
+      return;
+    }
     if (this.bossStats.state === "meleeWindup" || this.bossStats.state === "chargeWindup" ||
-        this.bossStats.state === "charging" || this.bossStats.state === "recovery") return;
+        this.bossStats.state === "recovery") return;
 
     if (distance > 440) {
       this.bossStats.state = "idle";
