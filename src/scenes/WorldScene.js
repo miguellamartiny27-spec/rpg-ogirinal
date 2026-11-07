@@ -315,14 +315,28 @@ export class WorldScene extends Phaser.Scene {
     const cost = heavy ? 28 : 14;
     if (this.playerStats.stamina < cost) return;
     this.playerStats.stamina -= cost; this.playerBusy = true; this.player.setVelocity(0,0);
+    // O golpe segue a direção atual do analógico (ou a última direção pressionada).
+    const aim = this.lastAimVector.clone().normalize();
     const distance = Phaser.Math.Distance.Between(this.player.x,this.player.y,this.enemy.x,this.enemy.y);
-    const radius = heavy ? 86 : 68;
-    // Golpe em área: o arco fecha 360 graus ao redor do personagem.
-    const slash=this.add.circle(this.player.x,this.player.y,radius,heavy?0xe6c477:0xd9e4c0,0.13)
-      .setStrokeStyle(heavy?8:5,heavy?0xe6c477:0xd9e4c0,0.95)
-      .setDepth(this.player.y+8);
-    this.tweens.add({targets:slash,alpha:0,scale:1.16,duration:heavy?270:190,onComplete:()=>slash.destroy()});
-    if (this.enemy.active && this.enemyStats.health>0 && distance <= radius) {
+    const dx = this.enemy.x - this.player.x;
+    const dy = this.enemy.y - this.player.y;
+    const facing = distance > 0 ? (dx * aim.x + dy * aim.y) / distance : 1;
+    const reach = heavy ? 94 : 72;
+    const slash = this.add.ellipse(
+      this.player.x + aim.x * (heavy ? 42 : 34),
+      this.player.y + aim.y * (heavy ? 42 : 34),
+      heavy ? 66 : 52,
+      heavy ? 30 : 23,
+      heavy ? 0xe6c477 : 0xd9e4c0,
+      0.5
+    ).setRotation(Math.atan2(aim.y, aim.x)).setDepth(this.player.y + 8);
+    this.tweens.add({
+      targets: slash, alpha: 0, scaleX: 1.28,
+      duration: heavy ? 270 : 190, onComplete: () => slash.destroy()
+    });
+    // Alcance frontal com uma abertura de aproximadamente 100 graus.
+    if (this.enemy.active && this.enemyStats.health > 0 &&
+        distance <= reach && facing >= 0.58) {
       this.enemyStats.health=Math.max(0,this.enemyStats.health-(heavy?34:18));
       this.enemy.setTint(0xffffff); this.time.delayedCall(100,()=>{if(this.enemy.active)this.enemy.clearTint();});
       this.enemyBar.setSize(44*this.enemyStats.health/70,5);
