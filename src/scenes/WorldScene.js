@@ -23,7 +23,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   createTextures() {
-    if (this.textures.exists("hero")) return;
+    if (this.textures.exists("hero-sheet")) return;
 
     const hero = this.make.graphics({ x: 0, y: 0, add: false });
     const frameW = 32, frameH = 36;
@@ -86,6 +86,23 @@ export class WorldScene extends Phaser.Scene {
     rock.fillStyle(0x879184); rock.fillEllipse(13, 9, 13, 7);
     rock.generateTexture("rock", 36, 28);
     rock.destroy();
+
+    const bush = this.make.graphics({ x: 0, y: 0, add: false });
+    bush.fillStyle(0x294b32); bush.fillEllipse(24, 25, 42, 23);
+    bush.fillStyle(0x3e7042); bush.fillCircle(14, 20, 13);
+    bush.fillStyle(0x4e8148); bush.fillCircle(29, 15, 15);
+    bush.fillStyle(0x5d8b50); bush.fillCircle(39, 23, 11);
+    bush.fillStyle(0x7da05c, 0.8); bush.fillCircle(22, 11, 4);
+    bush.generateTexture("bush", 52, 34);
+    bush.destroy();
+
+    const grass = this.make.graphics({ x: 0, y: 0, add: false });
+    grass.lineStyle(2, 0x9ab66a, 0.9);
+    grass.beginPath(); grass.moveTo(8, 18); grass.lineTo(5, 5);
+    grass.moveTo(10, 18); grass.lineTo(12, 2);
+    grass.moveTo(12, 18); grass.lineTo(18, 7); grass.strokePath();
+    grass.generateTexture("grass-tuft", 24, 20);
+    grass.destroy();
   }
 
   createWorld() {
@@ -153,6 +170,82 @@ export class WorldScene extends Phaser.Scene {
       fontSize: "12px", color: "#d6eeee", stroke: "#28545a",
       strokeThickness: 4, letterSpacing: 2
     }).setOrigin(0.5).setDepth(2);
+
+    this.createEnvironmentDetails();
+    this.createEnvironmentAnimations();
+  }
+
+  createEnvironmentDetails() {
+    const bushes = [
+      [105, 430, 0.9], [250, 390, 0.8], [430, 300, 0.85], [680, 390, 0.9],
+      [930, 300, 0.8], [1100, 560, 0.95], [1260, 690, 0.85], [1530, 370, 0.9],
+      [1640, 560, 0.8], [1390, 790, 0.9], [1010, 900, 0.85], [700, 850, 0.9],
+      [420, 820, 0.8], [180, 820, 0.9], [80, 610, 0.8], [1740, 420, 0.9]
+    ];
+    bushes.forEach(([x, y, scale]) => {
+      this.add.image(x, y, "bush").setScale(scale).setDepth(y - 2);
+    });
+
+    const grassPatches = [
+      [90, 220], [350, 170], [550, 340], [740, 250], [980, 180],
+      [1160, 330], [1320, 520], [1600, 740], [1500, 960], [1180, 960],
+      [850, 1060], [540, 980], [260, 1030], [90, 900], [1780, 850],
+      [350, 560], [1040, 680], [700, 730], [1260, 160], [1680, 300]
+    ];
+    grassPatches.forEach(([x, y], index) => {
+      this.add.image(x, y, "grass-tuft")
+        .setRotation(((index % 5) - 2) * 0.12)
+        .setAlpha(0.72).setDepth(y);
+    });
+
+    const flowerColors = [0xf0d47a, 0xe7a6a1, 0xd9d5ef, 0xf0e8c8];
+    const flowerPatches = [
+      [210, 300], [380, 220], [570, 180], [760, 330], [930, 220],
+      [1080, 390], [1280, 590], [1550, 650], [1450, 880], [1120, 1030],
+      [820, 930], [580, 890], [320, 960], [130, 760], [1710, 940]
+    ];
+    flowerPatches.forEach(([x, y], index) => {
+      const color = flowerColors[index % flowerColors.length];
+      this.add.circle(x, y, 3, 0x3c633d).setDepth(y);
+      this.add.circle(x, y - 3, 2.5, color).setDepth(y + 1);
+      this.add.circle(x - 3, y, 2, color).setDepth(y + 1);
+      this.add.circle(x + 3, y, 2, color).setDepth(y + 1);
+      this.add.circle(x, y + 2, 2, color).setDepth(y + 1);
+    });
+
+    [[220,480],[320,720],[590,470],[870,820],[1080,760],[1320,900],[1580,220],[470,1080]]
+      .forEach(([x,y], i) => {
+        this.add.ellipse(x, y, 7 + (i % 3) * 2, 4, 0x879184, 0.8).setDepth(y);
+      });
+  }
+
+  createEnvironmentAnimations() {
+    const glints = [
+      [1370, 225, 0.9], [1450, 270, 0.65], [1530, 215, 0.8], [1490, 315, 0.55]
+    ];
+    glints.forEach(([x, y, alpha], index) => {
+      const shine = this.add.ellipse(x, y, 44, 5, 0xc4e5d9, alpha)
+        .setDepth(1).setBlendMode(Phaser.BlendModes.SCREEN);
+      this.tweens.add({
+        targets: shine, x: x + (index % 2 ? -18 : 18),
+        scaleX: 1.35, alpha: 0.18, duration: 2100 + index * 350,
+        yoyo: true, repeat: -1, ease: "Sine.easeInOut",
+        delay: index * 420
+      });
+    });
+
+    const fireflySpots = [
+      [190, 250], [460, 190], [730, 300], [1010, 230],
+      [1210, 650], [1510, 740], [900, 960], [280, 880]
+    ];
+    fireflySpots.forEach(([x, y], index) => {
+      const glow = this.add.circle(x, y, 2.2, 0xf4e6a0, 0.15).setDepth(y + 3);
+      this.tweens.add({
+        targets: glow, alpha: 0.9, y: y - 8 - (index % 3) * 3,
+        duration: 1300 + index * 170, yoyo: true, repeat: -1,
+        ease: "Sine.easeInOut", delay: index * 260
+      });
+    });
   }
 
   createPlayer() {
