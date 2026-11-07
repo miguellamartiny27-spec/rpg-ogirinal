@@ -11,6 +11,7 @@ export class WorldScene extends Phaser.Scene {
     this.createTextures();
     this.createWorld();
     this.createPlayer();
+    this.createNpc();
     this.createControls();
     this.createHud();
 
@@ -95,6 +96,18 @@ export class WorldScene extends Phaser.Scene {
     bush.fillStyle(0x7da05c, 0.8); bush.fillCircle(22, 11, 4);
     bush.generateTexture("bush", 52, 34);
     bush.destroy();
+
+    const npc = this.make.graphics({ x: 0, y: 0, add: false });
+    npc.fillStyle(0x354a38); npc.fillEllipse(16, 34, 23, 7);
+    npc.fillStyle(0x69452f); npc.fillRect(9, 22, 6, 11); npc.fillRect(18, 22, 6, 11);
+    npc.fillStyle(0x6b8b53); npc.fillRect(7, 12, 18, 13);
+    npc.fillStyle(0x9d7448); npc.fillRect(5, 14, 4, 10); npc.fillRect(23, 14, 4, 10);
+    npc.fillStyle(0xe4b98a); npc.fillRect(9, 2, 14, 13);
+    npc.fillStyle(0x6b422d); npc.fillRect(8, 1, 16, 5); npc.fillRect(7, 4, 3, 7); npc.fillRect(22, 4, 3, 7);
+    npc.fillStyle(0x29352e); npc.fillRect(12, 7, 2, 2); npc.fillRect(19, 7, 2, 2);
+    npc.fillStyle(0xd7c28c); npc.fillRect(14, 16, 4, 7);
+    npc.generateTexture("village-elder", 32, 38);
+    npc.destroy();
 
     const grass = this.make.graphics({ x: 0, y: 0, add: false });
     grass.lineStyle(2, 0x9ab66a, 0.9);
@@ -257,6 +270,61 @@ export class WorldScene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.obstacles);
   }
 
+  createNpc() {
+    this.npc = this.add.image(900, 555, "village-elder").setOrigin(0.5, 0.85).setDepth(555);
+    this.npc.setScale(1.15);
+    this.add.text(900, 510, "ANCIÃO", {
+      fontSize: "10px", color: "#f5e7bd", fontStyle: "bold",
+      stroke: "#293b2d", strokeThickness: 3
+    }).setOrigin(0.5).setDepth(560);
+
+    this.npcPrompt = this.add.text(900, 485, "E  •  CONVERSAR", {
+      fontSize: "11px", color: "#fff3c9", backgroundColor: "#17251ee8",
+      padding: { x: 8, y: 5 }, stroke: "#17251e", strokeThickness: 2
+    }).setOrigin(0.5).setDepth(4100).setScrollFactor(0).setVisible(false);
+
+    this.dialogPanel = this.add.rectangle(this.scale.width / 2, this.scale.height - 82,
+      Math.min(this.scale.width - 32, 620), 116, 0x14211f, 0.96)
+      .setStrokeStyle(2, 0xc6a96d, 0.95).setScrollFactor(0).setDepth(5000).setVisible(false);
+    this.dialogName = this.add.text(this.scale.width / 2 - 270, this.scale.height - 128,
+      "ANCIÃO DA CLAREIRA", {
+        fontSize: "12px", color: "#e8c77e", fontStyle: "bold", letterSpacing: 1
+      }).setScrollFactor(0).setDepth(5001).setVisible(false);
+    this.dialogText = this.add.text(this.scale.width / 2 - 270, this.scale.height - 102,
+      "", {
+        fontSize: "14px", color: "#f4edda", wordWrap: { width: Math.min(this.scale.width - 90, 540) },
+        lineSpacing: 5
+      }).setScrollFactor(0).setDepth(5001).setVisible(false);
+    this.dialogHint = this.add.text(this.scale.width / 2 + 270, this.scale.height - 45,
+      "E / TOQUE PARA FECHAR", {
+        fontSize: "9px", color: "#c6b994"
+      }).setOrigin(1).setScrollFactor(0).setDepth(5001).setVisible(false);
+
+    this.dialogOpen = false;
+    this.dialogLines = [
+      "Viajante! Faz tempo que alguém novo não chega à Clareira do Começo.",
+      "Ao norte fica o Lago Sereno. Dizem que suas águas escondem histórias antigas.",
+      "Explore a região com calma. Há muito para descobrir por estas terras."
+    ];
+    this.dialogIndex = 0;
+    this.interactionKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+  }
+
+  requestInteraction() {
+    if (this.dialogOpen) {
+      this.dialogOpen = false;
+      [this.dialogPanel, this.dialogName, this.dialogText, this.dialogHint].forEach(item => item.setVisible(false));
+      return;
+    }
+    const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.npc.x, this.npc.y);
+    if (distance > 92) return;
+    this.dialogOpen = true;
+    this.dialogIndex = 0;
+    this.dialogName.setVisible(true);
+    this.dialogText.setText(this.dialogLines[this.dialogIndex]).setVisible(true);
+    [this.dialogPanel, this.dialogHint].forEach(item => item.setVisible(true));
+  }
+
   createControls() {
     const makeButton = (x, y, label, dx, dy) => {
       const bg = this.add.circle(x, y, 25, 0x17231e, 0.72)
@@ -284,6 +352,13 @@ export class WorldScene extends Phaser.Scene {
     makeButton(left, bottom - 106, "↑", 0, -1);
     makeButton(left - 52, bottom - 53, "←", -1, 0);
     makeButton(left + 52, bottom - 53, "→", 1, 0);
+
+    this.talkButton = this.add.text(this.scale.width - 72, this.scale.height - 72, "FALAR", {
+      fontSize: "12px", color: "#fff0c5", backgroundColor: "#263d2fe8",
+      padding: { x: 14, y: 12 }, fontStyle: "bold"
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(4200).setInteractive()
+      .setVisible(false);
+    this.talkButton.on("pointerdown", () => this.requestInteraction());
   }
 
   createHud() {
@@ -320,6 +395,23 @@ export class WorldScene extends Phaser.Scene {
     if (this.keys.D.isDown || this.keys.RIGHT.isDown) x += 1;
     if (this.keys.W.isDown || this.keys.UP.isDown) y -= 1;
     if (this.keys.S.isDown || this.keys.DOWN.isDown) y += 1;
+
+    if (Phaser.Input.Keyboard.JustDown(this.interactionKey)) {
+      this.requestInteraction();
+    }
+
+    const nearNpc = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.npc.x, this.npc.y) <= 92;
+    this.talkButton.setVisible(nearNpc || this.dialogOpen);
+    if (this.dialogOpen) {
+      this.player.setVelocity(0, 0);
+      return;
+    }
+    if (nearNpc) {
+      const point = this.cameras.main.getWorldPoint(this.scale.width / 2, this.scale.height / 2 - 65);
+      this.npcPrompt.setPosition(point.x, point.y).setVisible(true);
+    } else {
+      this.npcPrompt.setVisible(false);
+    }
 
     if (x === 0 && y === 0) {
       x = this.touchDirection.x;
