@@ -109,6 +109,18 @@ export class WorldScene extends Phaser.Scene {
     npc.generateTexture("village-elder", 32, 38);
     npc.destroy();
 
+    const guardian = this.make.graphics({ x: 0, y: 0, add: false });
+    guardian.fillStyle(0x354a38); guardian.fillEllipse(16, 34, 23, 7);
+    guardian.fillStyle(0x344c60); guardian.fillRect(9, 22, 6, 11); guardian.fillRect(18, 22, 6, 11);
+    guardian.fillStyle(0x477b83); guardian.fillRect(7, 12, 18, 13);
+    guardian.fillStyle(0xd6c18d); guardian.fillRect(5, 14, 4, 10); guardian.fillRect(23, 14, 4, 10);
+    guardian.fillStyle(0xe9c69c); guardian.fillRect(9, 2, 14, 13);
+    guardian.fillStyle(0x493b32); guardian.fillRect(8, 1, 16, 5); guardian.fillRect(7, 4, 3, 7); guardian.fillRect(22, 4, 3, 7);
+    guardian.fillStyle(0x29352e); guardian.fillRect(12, 7, 2, 2); guardian.fillRect(19, 7, 2, 2);
+    guardian.fillStyle(0xc6a96d); guardian.fillRect(14, 16, 4, 7);
+    guardian.generateTexture("lake-guardian", 32, 38);
+    guardian.destroy();
+
     const grass = this.make.graphics({ x: 0, y: 0, add: false });
     grass.lineStyle(2, 0x9ab66a, 0.9);
     grass.beginPath(); grass.moveTo(8, 18); grass.lineTo(5, 5);
@@ -271,58 +283,124 @@ export class WorldScene extends Phaser.Scene {
   }
 
   createNpc() {
-    this.npc = this.add.image(900, 555, "village-elder").setOrigin(0.5, 0.85).setDepth(555);
-    this.npc.setScale(1.15);
-    this.add.text(900, 510, "ANCIÃO", {
-      fontSize: "10px", color: "#f5e7bd", fontStyle: "bold",
-      stroke: "#293b2d", strokeThickness: 3
-    }).setOrigin(0.5).setDepth(560);
+    this.npcs = [
+      {
+        id: "elder",
+        name: "ANCIÃO DA CLAREIRA",
+        title: "ANCIÃO",
+        x: 900,
+        y: 555,
+        texture: "village-elder",
+        dialogue: [
+          "Viajante! Faz tempo que alguém novo não chega à Clareira do Começo.",
+          "Ao norte fica o Lago Sereno. Dizem que suas águas escondem histórias antigas.",
+          "Explore a região com calma. Há muito para descobrir por estas terras."
+        ]
+      },
+      {
+        id: "guardian",
+        name: "GUARDIÃ DO LAGO",
+        title: "GUARDIÃ",
+        x: 1390,
+        y: 405,
+        texture: "lake-guardian",
+        dialogue: [
+          "Cuidado ao caminhar perto da água. O Lago Sereno parece tranquilo, mas é profundo.",
+          "As marcas nas pedras da margem são mais antigas que a própria Clareira.",
+          "Quando estiver preparado, volte aqui. Talvez eu tenha algo importante para contar."
+        ]
+      }
+    ];
 
-    this.npcPrompt = this.add.text(900, 485, "E  •  CONVERSAR", {
+    this.npcs.forEach((npc) => {
+      npc.sprite = this.add.image(npc.x, npc.y, npc.texture)
+        .setOrigin(0.5, 0.85).setScale(1.15).setDepth(npc.y);
+      npc.label = this.add.text(npc.x, npc.y - 47, npc.title, {
+        fontSize: "10px", color: "#f5e7bd", fontStyle: "bold",
+        stroke: "#293b2d", strokeThickness: 3
+      }).setOrigin(0.5).setDepth(npc.y + 2);
+      this.tweens.add({
+        targets: npc.sprite, y: npc.y - 2, duration: 1250,
+        yoyo: true, repeat: -1, ease: "Sine.easeInOut",
+        delay: npc.id === "guardian" ? 400 : 0
+      });
+    });
+
+    this.npcPrompt = this.add.text(this.scale.width / 2, 104, "E  •  CONVERSAR", {
       fontSize: "11px", color: "#fff3c9", backgroundColor: "#17251ee8",
       padding: { x: 8, y: 5 }, stroke: "#17251e", strokeThickness: 2
     }).setOrigin(0.5).setDepth(4100).setScrollFactor(0).setVisible(false);
 
+    const dialogWidth = Math.min(this.scale.width - 32, 620);
+    const dialogLeft = (this.scale.width - dialogWidth) / 2;
     this.dialogPanel = this.add.rectangle(this.scale.width / 2, this.scale.height - 82,
-      Math.min(this.scale.width - 32, 620), 116, 0x14211f, 0.96)
+      dialogWidth, 116, 0x14211f, 0.96)
       .setStrokeStyle(2, 0xc6a96d, 0.95).setScrollFactor(0).setDepth(5000).setVisible(false);
-    this.dialogName = this.add.text(this.scale.width / 2 - 270, this.scale.height - 128,
-      "ANCIÃO DA CLAREIRA", {
+    this.dialogName = this.add.text(dialogLeft + 18, this.scale.height - 128,
+      "", {
         fontSize: "12px", color: "#e8c77e", fontStyle: "bold", letterSpacing: 1
       }).setScrollFactor(0).setDepth(5001).setVisible(false);
-    this.dialogText = this.add.text(this.scale.width / 2 - 270, this.scale.height - 102,
+    this.dialogText = this.add.text(dialogLeft + 18, this.scale.height - 102,
       "", {
-        fontSize: "14px", color: "#f4edda", wordWrap: { width: Math.min(this.scale.width - 90, 540) },
+        fontSize: "13px", color: "#f4edda", wordWrap: { width: dialogWidth - 36 },
         lineSpacing: 5
       }).setScrollFactor(0).setDepth(5001).setVisible(false);
-    this.dialogHint = this.add.text(this.scale.width / 2 + 270, this.scale.height - 45,
-      "E / TOQUE PARA FECHAR", {
+    this.dialogHint = this.add.text(dialogLeft + dialogWidth - 18, this.scale.height - 45,
+      "E / TOQUE PARA AVANÇAR", {
         fontSize: "9px", color: "#c6b994"
       }).setOrigin(1).setScrollFactor(0).setDepth(5001).setVisible(false);
 
     this.dialogOpen = false;
-    this.dialogLines = [
-      "Viajante! Faz tempo que alguém novo não chega à Clareira do Começo.",
-      "Ao norte fica o Lago Sereno. Dizem que suas águas escondem histórias antigas.",
-      "Explore a região com calma. Há muito para descobrir por estas terras."
-    ];
+    this.activeNpc = null;
     this.dialogIndex = 0;
     this.interactionKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
   }
 
+  getNearbyNpc() {
+    if (!this.player || !this.npcs) return null;
+    let nearest = null;
+    let nearestDistance = 92;
+    this.npcs.forEach((npc) => {
+      const distance = Phaser.Math.Distance.Between(
+        this.player.x, this.player.y, npc.x, npc.y
+      );
+      if (distance <= nearestDistance) {
+        nearest = npc;
+        nearestDistance = distance;
+      }
+    });
+    return nearest;
+  }
+
+  closeDialogue() {
+    this.dialogOpen = false;
+    this.activeNpc = null;
+    [this.dialogPanel, this.dialogName, this.dialogText, this.dialogHint]
+      .forEach((item) => item.setVisible(false));
+  }
+
   requestInteraction() {
     if (this.dialogOpen) {
-      this.dialogOpen = false;
-      [this.dialogPanel, this.dialogName, this.dialogText, this.dialogHint].forEach(item => item.setVisible(false));
+      if (this.activeNpc && this.dialogIndex < this.activeNpc.dialogue.length - 1) {
+        this.dialogIndex += 1;
+        this.dialogText.setText(this.activeNpc.dialogue[this.dialogIndex]);
+        this.dialogHint.setText("E / TOQUE PARA FECHAR");
+      } else {
+        this.closeDialogue();
+      }
       return;
     }
-    const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.npc.x, this.npc.y);
-    if (distance > 92) return;
+
+    const npc = this.getNearbyNpc();
+    if (!npc) return;
+
+    this.activeNpc = npc;
     this.dialogOpen = true;
     this.dialogIndex = 0;
-    this.dialogName.setVisible(true);
-    this.dialogText.setText(this.dialogLines[this.dialogIndex]).setVisible(true);
-    [this.dialogPanel, this.dialogHint].forEach(item => item.setVisible(true));
+    this.dialogName.setText(npc.name).setVisible(true);
+    this.dialogText.setText(npc.dialogue[0]).setVisible(true);
+    this.dialogHint.setText(npc.dialogue.length > 1 ? "E / TOQUE PARA AVANÇAR" : "E / TOQUE PARA FECHAR");
+    [this.dialogPanel, this.dialogHint].forEach((item) => item.setVisible(true));
   }
 
   createControls() {
@@ -400,17 +478,22 @@ export class WorldScene extends Phaser.Scene {
       this.requestInteraction();
     }
 
-    const nearNpc = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.npc.x, this.npc.y) <= 92;
-    this.talkButton.setVisible(nearNpc || this.dialogOpen);
+    const nearbyNpc = this.getNearbyNpc();
+    this.talkButton.setVisible(Boolean(nearbyNpc) || this.dialogOpen);
     if (this.dialogOpen) {
       this.player.setVelocity(0, 0);
       return;
     }
-    if (nearNpc) {
-      this.npcPrompt.setPosition(this.scale.width / 2, 104).setVisible(true);
+    if (nearbyNpc) {
+      this.npcPrompt.setText(`E  •  CONVERSAR COM ${nearbyNpc.title}`)
+        .setPosition(this.scale.width / 2, 104).setVisible(true);
     } else {
       this.npcPrompt.setVisible(false);
     }
+    this.npcs.forEach((npc) => {
+      npc.sprite.setDepth(npc.sprite.y);
+      npc.label.setPosition(npc.x, npc.sprite.y - 47).setDepth(npc.sprite.y + 2);
+    });
 
     if (x === 0 && y === 0) {
       x = this.touchDirection.x;
