@@ -136,6 +136,31 @@ export class WorldScene extends Phaser.Scene {
     slime.fillStyle(0xe8e2c4); slime.fillCircle(14, 20, 3); slime.fillCircle(27, 20, 3);
     slime.fillStyle(0x26332f); slime.fillCircle(15, 21, 1.5); slime.fillCircle(28, 21, 1.5);
     slime.generateTexture("wandering-slime", 40, 36); slime.destroy();
+
+    const boss = this.make.graphics({ x: 0, y: 0, add: false });
+    boss.fillStyle(0x1c2924); boss.fillEllipse(28, 49, 46, 12);
+    boss.fillStyle(0x493b2b); boss.fillRect(13, 35, 12, 17); boss.fillRect(32, 35, 12, 17);
+    boss.fillStyle(0x292f2a); boss.fillRect(10, 46, 17, 7); boss.fillRect(30, 46, 17, 7);
+    boss.fillStyle(0x536348); boss.fillRect(9, 18, 39, 24);
+    boss.fillStyle(0x71805a); boss.fillRect(14, 13, 29, 25);
+    boss.fillStyle(0x384538); boss.fillRect(5, 20, 9, 22); boss.fillRect(43, 20, 9, 22);
+    boss.fillStyle(0x8d7650); boss.fillRect(7, 35, 8, 8); boss.fillRect(42, 35, 8, 8);
+    boss.fillStyle(0x5a4934); boss.fillRect(13, 3, 30, 18);
+    boss.fillStyle(0x8a7650); boss.fillPoints([
+      new Phaser.Geom.Point(14, 8), new Phaser.Geom.Point(4, 0),
+      new Phaser.Geom.Point(10, 16), new Phaser.Geom.Point(18, 14)
+    ], true);
+    boss.fillPoints([
+      new Phaser.Geom.Point(42, 8), new Phaser.Geom.Point(52, 0),
+      new Phaser.Geom.Point(46, 16), new Phaser.Geom.Point(38, 14)
+    ], true);
+    boss.fillStyle(0xc6b77b); boss.fillRect(18, 10, 5, 3); boss.fillRect(34, 10, 5, 3);
+    boss.fillStyle(0x202a25); boss.fillRect(19, 11, 2, 2); boss.fillRect(35, 11, 2, 2);
+    boss.fillStyle(0x9a5540); boss.fillRect(24, 17, 10, 3);
+    boss.fillStyle(0x9d895c); boss.fillRect(24, 25, 8, 13);
+    boss.fillStyle(0x3b4938); boss.fillRect(2, 27, 7, 12); boss.fillRect(47, 27, 7, 12);
+    boss.generateTexture("forest-warden", 56, 56);
+    boss.destroy();
   }
 
   createWorld() {
@@ -304,6 +329,34 @@ export class WorldScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(620);
     this.enemyBar = this.add.rectangle(1080, 580, 44, 5, 0x9b5147).setDepth(620);
     this.combatKeys = this.input.keyboard.addKeys({ light: "J", heavy: "K", dodge: "SPACE" });
+    this.createBoss();
+  }
+
+  createBoss() {
+    this.boss = this.physics.add.sprite(1510, 760, "forest-warden")
+      .setScale(1.8).setDepth(760);
+    this.boss.body.setSize(30, 28).setOffset(13, 23);
+    this.boss.setMaxVelocity(390, 390);
+    this.bossStats = { health: 360, maxHealth: 360, state: "idle", hitDuringCharge: false };
+    this.physics.add.collider(this.boss, this.obstacles);
+    this.bossName = this.add.text(this.boss.x, this.boss.y - 65, "GUARDIÃO FENDIDO", {
+      fontSize: "12px", color: "#e8d3a0", fontStyle: "bold",
+      stroke: "#251f1a", strokeThickness: 4, letterSpacing: 1
+    }).setOrigin(0.5).setDepth(900);
+    this.bossWorldBarBack = this.add.rectangle(this.boss.x, this.boss.y - 49, 76, 7, 0x211d1b)
+      .setDepth(900);
+    this.bossWorldBar = this.add.rectangle(this.boss.x, this.boss.y - 49, 72, 4, 0xa34e43)
+      .setDepth(901);
+    this.bossHudName = this.add.text(this.scale.width / 2, 18, "GUARDIÃO FENDIDO", {
+      fontSize: "11px", color: "#e8d3a0", fontStyle: "bold", letterSpacing: 2
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(4600).setVisible(false);
+    this.bossHudBack = this.add.rectangle(this.scale.width / 2, 39, 260, 9, 0x241e1b, 0.95)
+      .setScrollFactor(0).setDepth(4600).setStrokeStyle(1, 0x9b7950, 0.9).setVisible(false);
+    this.bossHudFill = this.add.rectangle(this.scale.width / 2 - 128, 39, 256, 5, 0xa34e43)
+      .setOrigin(0, 0.5).setScrollFactor(0).setDepth(4601).setVisible(false);
+    this.bossHudHint = this.add.text(this.scale.width / 2, 53, "CHEFE", {
+      fontSize: "8px", color: "#c7b99c", letterSpacing: 1
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(4600).setVisible(false);
   }
 
   directionVector(dir) {
@@ -347,6 +400,36 @@ export class WorldScene extends Phaser.Scene {
           this.enemy.setActive(false).setVisible(false); this.enemyName.setVisible(false); this.enemyBar.setVisible(false);
           this.time.delayedCall(5000,()=>{this.enemyStats.health=70;this.enemyStats.state="idle";this.enemy.setPosition(1080,610).setActive(true).setVisible(true).setAlpha(1);this.enemyName.setText("LODO ERRANTE").setVisible(true).setAlpha(1);this.enemyBar.setVisible(true).setAlpha(1).setSize(44,5);});
         }});
+      }
+    }
+    if (this.boss && this.boss.active && this.bossStats.health > 0) {
+      const bossDistance = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.boss.x, this.boss.y);
+      const bx = this.boss.x - this.player.x;
+      const by = this.boss.y - this.player.y;
+      const bossFacing = bossDistance > 0 ? (bx * aim.x + by * aim.y) / bossDistance : 1;
+      const bossReach = heavy ? 128 : 102;
+      if (bossDistance <= bossReach && bossFacing >= 0.42) {
+        this.bossStats.health = Math.max(0, this.bossStats.health - (heavy ? 34 : 18));
+        this.boss.setTint(0xffe0a0);
+        this.time.delayedCall(130, () => { if (this.boss.active && this.bossStats.health > 0) this.boss.clearTint(); });
+        this.bossHudFill.setSize(256 * this.bossStats.health / this.bossStats.maxHealth, 5);
+        this.cameras.main.shake(heavy ? 110 : 70, heavy ? 0.004 : 0.0025);
+        if (this.bossStats.health === 0) {
+          this.bossStats.state = "dead";
+          this.boss.setVelocity(0, 0);
+          this.bossName.setText("GUARDIÃO DERROTADO");
+          this.bossHudHint.setText("VITÓRIA");
+          this.tweens.add({
+            targets: [this.boss, this.bossName, this.bossWorldBarBack, this.bossWorldBar],
+            alpha: 0, duration: 900, onComplete: () => {
+              this.boss.setActive(false).setVisible(false);
+              this.bossName.setVisible(false);
+              this.bossWorldBarBack.setVisible(false);
+              this.bossWorldBar.setVisible(false);
+              this.time.delayedCall(12000, () => this.respawnBoss());
+            }
+          });
+        }
       }
     }
     this.time.delayedCall(heavy?560:330,()=>{this.playerBusy=false;});
@@ -426,6 +509,95 @@ export class WorldScene extends Phaser.Scene {
       this.playerInvulnerable = false;
       if (this.player.active) this.player.setAlpha(1);
     });
+  }
+
+  updateBoss() {
+    if (!this.boss || !this.boss.active || this.bossStats.health <= 0 || this.playerStats.health <= 0) return;
+    const dx = this.player.x - this.boss.x;
+    const dy = this.player.y - this.boss.y;
+    const distance = Math.hypot(dx, dy);
+    const engaged = distance < 520 || this.bossStats.health < this.bossStats.maxHealth;
+    [this.bossHudName, this.bossHudBack, this.bossHudFill, this.bossHudHint]
+      .forEach((item) => item.setVisible(engaged));
+    if (this.bossStats.state === "dead") return;
+
+    this.bossName.setPosition(this.boss.x, this.boss.y - 65).setDepth(this.boss.y + 20);
+    this.bossWorldBarBack.setPosition(this.boss.x, this.boss.y - 49).setDepth(this.boss.y + 20);
+    this.bossWorldBar.setPosition(this.boss.x, this.boss.y - 49).setDepth(this.boss.y + 21);
+
+    if (this.bossStats.state === "meleeWindup" || this.bossStats.state === "chargeWindup" ||
+        this.bossStats.state === "charging" || this.bossStats.state === "recovery") return;
+
+    if (distance > 440) {
+      this.bossStats.state = "idle";
+      this.boss.setVelocity(0, 0);
+      return;
+    }
+
+    if (distance <= 112) {
+      this.bossStats.state = "meleeWindup";
+      this.boss.setVelocity(0, 0).setTint(0xe5a35c);
+      const warning = this.add.circle(this.boss.x, this.boss.y + 8, 76, 0xd66a43, 0.13)
+        .setStrokeStyle(3, 0xe8a15b, 0.9).setDepth(this.boss.y + 5);
+      this.tweens.add({ targets: warning, alpha: 0, scale: 1.28, duration: 620, onComplete: () => warning.destroy() });
+      this.time.delayedCall(620, () => {
+        if (!this.boss.active || this.bossStats.health <= 0 || this.bossStats.state !== "meleeWindup") return;
+        this.boss.clearTint();
+        const close = Phaser.Math.Distance.Between(this.boss.x, this.boss.y, this.player.x, this.player.y);
+        if (close <= 132) this.damagePlayer(22);
+        this.bossStats.state = "recovery";
+        this.time.delayedCall(850, () => {
+          if (this.boss.active && this.bossStats.health > 0) this.bossStats.state = "chasing";
+        });
+      });
+      return;
+    }
+
+    if (distance <= 270) {
+      this.bossStats.state = "chargeWindup";
+      this.boss.setVelocity(0, 0).setTint(0xd66a43);
+      this.bossChargeVector = new Phaser.Math.Vector2(dx, dy).normalize();
+      const warning = this.add.ellipse(this.boss.x, this.boss.y + 8, 104, 44, 0xd64c36, 0.22)
+        .setStrokeStyle(3, 0xf0a05d, 0.95).setDepth(this.boss.y + 6);
+      this.tweens.add({ targets: warning, alpha: 0, scaleX: 1.3, scaleY: 1.3, duration: 720, onComplete: () => warning.destroy() });
+      this.time.delayedCall(720, () => {
+        if (!this.boss.active || this.bossStats.health <= 0 || this.bossStats.state !== "chargeWindup") return;
+        this.boss.clearTint();
+        this.bossStats.state = "charging";
+        this.bossStats.hitDuringCharge = false;
+        this.boss.setVelocity(this.bossChargeVector.x * 370, this.bossChargeVector.y * 370);
+        this.time.delayedCall(430, () => {
+          if (!this.boss.active || this.bossStats.health <= 0 || this.bossStats.state !== "charging") return;
+          this.boss.setVelocity(0, 0);
+          this.bossStats.state = "recovery";
+          this.time.delayedCall(1050, () => {
+            if (this.boss.active && this.bossStats.health > 0) this.bossStats.state = "chasing";
+          });
+        });
+      });
+      return;
+    }
+
+    if (distance <= 440) {
+      const direction = new Phaser.Math.Vector2(dx, dy).normalize();
+      this.boss.setVelocity(direction.x * 72, direction.y * 72);
+      this.bossStats.state = "chasing";
+    }
+    this.boss.setDepth(this.boss.y);
+  }
+
+  respawnBoss() {
+    if (!this.boss) return;
+    this.bossStats.health = this.bossStats.maxHealth;
+    this.bossStats.state = "idle";
+    this.bossStats.hitDuringCharge = false;
+    this.boss.setPosition(1510, 760).setActive(true).setVisible(true).setAlpha(1).clearTint();
+    this.bossName.setText("GUARDIÃO FENDIDO").setVisible(true).setAlpha(1);
+    this.bossWorldBarBack.setVisible(true).setAlpha(1);
+    this.bossWorldBar.setVisible(true).setAlpha(1);
+    this.bossWorldBar.setSize(72, 4);
+    this.bossHudFill.setSize(256, 5);
+    this.bossHudHint.setText("CHEFE");
   }
 
   damagePlayer(amount) {
@@ -698,6 +870,12 @@ export class WorldScene extends Phaser.Scene {
     this.staminaTrack.setPosition(panelX+14,panelY+54).setSize(barWidth,6);
     this.staminaFill.setPosition(panelX+14,panelY+54).setSize(barWidth,6);
     this.keyboardHint.setText("WASD • J/K • ESPAÇO").setPosition(width-18,20).setVisible(!mobile);
+    const bossHudY = mobile ? (mobileLandscape ? 18 : 100) : 18;
+    this.bossHudName.setPosition(width / 2, bossHudY);
+    this.bossHudBack.setPosition(width / 2, bossHudY + 21).setSize(Math.min(260, width - 48), 9);
+    this.bossHudFill.setPosition(width / 2 - Math.min(128, (width - 48) / 2 - 2), bossHudY + 21)
+      .setSize(Math.min(256, width - 52) * this.bossStats.health / this.bossStats.maxHealth, 5);
+    this.bossHudHint.setPosition(width / 2, bossHudY + 35);
     const combatY=height-(mobile?92:72), combatXs=[width-220,width-145,width-70];
     this.combatButtons.forEach((b,i)=>{b.bg.setPosition(combatXs[i],combatY).setVisible(mobile);b.txt.setPosition(combatXs[i],combatY).setVisible(mobile);});
 
@@ -761,6 +939,7 @@ export class WorldScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.combatKeys.heavy)) this.performAttack(true);
     if (Phaser.Input.Keyboard.JustDown(this.combatKeys.dodge)) this.dodge();
     this.updateEnemy();
+    this.updateBoss();
     if(!this.playerBusy&&!this.isDodging)this.playerStats.stamina=Math.min(100,this.playerStats.stamina+delta*0.022);
     const barW=this.isMobileLayout?Math.min(this.isMobileLandscape?172:144,Math.min(this.scale.width-28,this.isMobileLandscape?300:264)-100):180;
     this.healthText.setText(`${Math.ceil(this.playerStats.health)}/100`);
