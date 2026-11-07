@@ -534,7 +534,7 @@ export class WorldScene extends Phaser.Scene {
     const dialogHeight = mobile ? (mobileLandscape ? 112 : 126) : 116;
     const dialogX = width / 2;
     const dialogY = mobile
-      ? (mobileLandscape ? height - 82 : height - 150)
+      ? (mobileLandscape ? height - 82 : height - 230)
       : height - 82;
     this.dialogPanel.setPosition(dialogX, dialogY).setSize(dialogWidth, dialogHeight);
     const leftEdge = dialogX - dialogWidth / 2;
