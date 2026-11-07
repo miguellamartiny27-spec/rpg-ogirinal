@@ -337,7 +337,7 @@ export class WorldScene extends Phaser.Scene {
       .setScale(1.8).setDepth(760);
     this.boss.body.setSize(30, 28).setOffset(13, 23);
     this.boss.setMaxVelocity(390, 390);
-    this.bossStats = { health: 360, maxHealth: 360, state: "idle", hitDuringCharge: false };
+    this.bossStats = { health: 360, maxHealth: 360, state: "idle", hitDuringCharge: false, phaseTwo: false };
     this.physics.add.collider(this.boss, this.obstacles);
     this.bossName = this.add.text(this.boss.x, this.boss.y - 65, "GUARDIÃO FENDIDO", {
       fontSize: "12px", color: "#e8d3a0", fontStyle: "bold",
@@ -402,7 +402,7 @@ export class WorldScene extends Phaser.Scene {
         }});
       }
     }
-    if (this.boss && this.boss.active && this.bossStats.health > 0) {
+    if (this.boss && this.boss.active && this.bossStats.health > 0 && this.bossStats.state !== "phaseTransition") {
       const bossDistance = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.boss.x, this.boss.y);
       const bx = this.boss.x - this.player.x;
       const by = this.boss.y - this.player.y;
@@ -414,6 +414,9 @@ export class WorldScene extends Phaser.Scene {
         this.time.delayedCall(130, () => { if (this.boss.active && this.bossStats.health > 0) this.boss.clearTint(); });
         this.bossHudFill.setSize(256 * this.bossStats.health / this.bossStats.maxHealth, 5);
         this.cameras.main.shake(heavy ? 110 : 70, heavy ? 0.004 : 0.0025);
+        if (!this.bossStats.phaseTwo && this.bossStats.health <= this.bossStats.maxHealth * 0.5) {
+          this.enterBossPhaseTwo();
+        }
         if (this.bossStats.health === 0) {
           this.bossStats.state = "dead";
           this.boss.setVelocity(0, 0);
@@ -511,6 +514,35 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+  enterBossPhaseTwo() {
+    if (this.bossStats.phaseTwo || this.bossStats.health <= 0) return;
+    this.bossStats.phaseTwo = true;
+    this.bossStats.state = "phaseTransition";
+    this.boss.setVelocity(0, 0).setRotation(0).setTint(0xc65b49);
+    this.bossName.setText("GUARDIÃO FENDIDO • DESPERTADO");
+    this.bossHudName.setText("GUARDIÃO FENDIDO • FASE II");
+    this.bossHudHint.setText("ELE ESTÁ MAIS RÁPIDO");
+    this.bossHudFill.setFillStyle(0xd65b45);
+    this.cameras.main.shake(420, 0.009);
+
+    const burst = this.add.circle(this.boss.x, this.boss.y + 8, 34, 0xc94d3e, 0.32)
+      .setStrokeStyle(4, 0xf0b36c, 0.95).setDepth(this.boss.y + 30);
+    this.tweens.add({
+      targets: burst, scale: 4.2, alpha: 0, duration: 900,
+      onComplete: () => burst.destroy()
+    });
+    this.tweens.add({
+      targets: this.boss, scaleX: 2.25, scaleY: 2.25, duration: 360,
+      yoyo: true, repeat: 1, ease: "Sine.easeInOut"
+    });
+    this.time.delayedCall(1150, () => {
+      if (!this.boss.active || this.bossStats.health <= 0) return;
+      this.boss.clearTint();
+      this.bossStats.state = "chasing";
+      this.bossHudHint.setText("FASE II • CUIDADO");
+    });
+  }
+
   updateBoss() {
     if (!this.boss || !this.boss.active || this.bossStats.health <= 0 || this.playerStats.health <= 0) return;
     const dx = this.player.x - this.boss.x;
@@ -519,7 +551,7 @@ export class WorldScene extends Phaser.Scene {
     const engaged = distance < 520 || this.bossStats.health < this.bossStats.maxHealth;
     [this.bossHudName, this.bossHudBack, this.bossHudFill, this.bossHudHint]
       .forEach((item) => item.setVisible(engaged));
-    if (this.bossStats.state === "dead") return;
+    if (this.bossStats.state === "dead" || this.bossStats.state === "phaseTransition") return;
 
     this.bossName.setPosition(this.boss.x, this.boss.y - 65).setDepth(this.boss.y + 20);
     this.bossWorldBarBack.setPosition(this.boss.x, this.boss.y - 49).setDepth(this.boss.y + 20);
@@ -528,7 +560,7 @@ export class WorldScene extends Phaser.Scene {
     if (this.bossStats.state === "charging") {
       if (!this.bossStats.hitDuringCharge && distance <= 64) {
         this.bossStats.hitDuringCharge = true;
-        this.damagePlayer(28);
+        this.damagePlayer(this.bossStats.phaseTwo ? 34 : 28);
         this.boss.setVelocity(0, 0);
         this.bossStats.state = "recovery";
         this.time.delayedCall(1050, () => {
@@ -546,43 +578,56 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
-    if (distance <= 112) {
+    const phaseTwo = this.bossStats.phaseTwo;
+    if (distance <= (phaseTwo ? 132 : 112)) {
       this.bossStats.state = "meleeWindup";
-      this.boss.setVelocity(0, 0).setTint(0xe5a35c);
+      this.boss.setVelocity(0, 0).setRotation(0).setTint(phaseTwo ? 0xd65b45 : 0xe5a35c);
+      this.tweens.add({
+        targets: this.boss, scaleX: phaseTwo ? 2.05 : 1.95, scaleY: phaseTwo ? 1.55 : 1.65,
+        duration: phaseTwo ? 300 : 360, yoyo: true, repeat: 0, ease: "Sine.easeIn"
+      });
       const warning = this.add.circle(this.boss.x, this.boss.y + 8, 76, 0xd66a43, 0.13)
         .setStrokeStyle(3, 0xe8a15b, 0.9).setDepth(this.boss.y + 5);
-      this.tweens.add({ targets: warning, alpha: 0, scale: 1.28, duration: 620, onComplete: () => warning.destroy() });
-      this.time.delayedCall(620, () => {
+      const meleeWindup = phaseTwo ? 500 : 620;
+      this.tweens.add({ targets: warning, alpha: 0, scale: 1.28, duration: meleeWindup, onComplete: () => warning.destroy() });
+      this.time.delayedCall(meleeWindup, () => {
         if (!this.boss.active || this.bossStats.health <= 0 || this.bossStats.state !== "meleeWindup") return;
-        this.boss.clearTint();
+        this.boss.clearTint().setScale(1.8).setRotation(0);
         const close = Phaser.Math.Distance.Between(this.boss.x, this.boss.y, this.player.x, this.player.y);
-        if (close <= 132) this.damagePlayer(22);
+        if (close <= (phaseTwo ? 148 : 132)) this.damagePlayer(phaseTwo ? 27 : 22);
         this.bossStats.state = "recovery";
-        this.time.delayedCall(850, () => {
+        this.time.delayedCall(phaseTwo ? 620 : 850, () => {
           if (this.boss.active && this.bossStats.health > 0) this.bossStats.state = "chasing";
         });
       });
       return;
     }
 
-    if (distance <= 270) {
+    if (distance <= (phaseTwo ? 330 : 270)) {
       this.bossStats.state = "chargeWindup";
-      this.boss.setVelocity(0, 0).setTint(0xd66a43);
+      this.boss.setVelocity(0, 0).setTint(phaseTwo ? 0xe04b3f : 0xd66a43);
       this.bossChargeVector = new Phaser.Math.Vector2(dx, dy).normalize();
-      const warning = this.add.ellipse(this.boss.x, this.boss.y + 8, 104, 44, 0xd64c36, 0.22)
-        .setStrokeStyle(3, 0xf0a05d, 0.95).setDepth(this.boss.y + 6);
-      this.tweens.add({ targets: warning, alpha: 0, scaleX: 1.3, scaleY: 1.3, duration: 720, onComplete: () => warning.destroy() });
-      this.time.delayedCall(720, () => {
+      this.boss.setRotation(Math.atan2(this.bossChargeVector.y, this.bossChargeVector.x));
+      this.tweens.add({
+        targets: this.boss, scaleX: phaseTwo ? 2.35 : 2.05, scaleY: phaseTwo ? 1.45 : 1.6,
+        duration: phaseTwo ? 280 : 360, yoyo: true, repeat: 0, ease: "Sine.easeIn"
+      });
+      const chargeWindup = phaseTwo ? 520 : 720;
+      const warning = this.add.ellipse(this.boss.x, this.boss.y + 8, phaseTwo ? 126 : 104, 44, 0xd64c36, 0.22)
+        .setStrokeStyle(3, phaseTwo ? 0xff7258 : 0xf0a05d, 0.95).setDepth(this.boss.y + 6);
+      this.tweens.add({ targets: warning, alpha: 0, scaleX: 1.3, scaleY: 1.3, duration: chargeWindup, onComplete: () => warning.destroy() });
+      this.time.delayedCall(chargeWindup, () => {
         if (!this.boss.active || this.bossStats.health <= 0 || this.bossStats.state !== "chargeWindup") return;
-        this.boss.clearTint();
+        this.boss.clearTint().setScale(1.8);
         this.bossStats.state = "charging";
         this.bossStats.hitDuringCharge = false;
-        this.boss.setVelocity(this.bossChargeVector.x * 370, this.bossChargeVector.y * 370);
-        this.time.delayedCall(430, () => {
+        const chargeSpeed = phaseTwo ? 470 : 370;
+        this.boss.setVelocity(this.bossChargeVector.x * chargeSpeed, this.bossChargeVector.y * chargeSpeed);
+        this.time.delayedCall(phaseTwo ? 500 : 430, () => {
           if (!this.boss.active || this.bossStats.health <= 0 || this.bossStats.state !== "charging") return;
-          this.boss.setVelocity(0, 0);
+          this.boss.setVelocity(0, 0).setRotation(0).setScale(1.8);
           this.bossStats.state = "recovery";
-          this.time.delayedCall(1050, () => {
+          this.time.delayedCall(phaseTwo ? 700 : 1050, () => {
             if (this.boss.active && this.bossStats.health > 0) this.bossStats.state = "chasing";
           });
         });
@@ -592,7 +637,8 @@ export class WorldScene extends Phaser.Scene {
 
     if (distance <= 440) {
       const direction = new Phaser.Math.Vector2(dx, dy).normalize();
-      this.boss.setVelocity(direction.x * 72, direction.y * 72);
+      const chaseSpeed = this.bossStats.phaseTwo ? 98 : 72;
+      this.boss.setVelocity(direction.x * chaseSpeed, direction.y * chaseSpeed);
       this.bossStats.state = "chasing";
     }
     this.boss.setDepth(this.boss.y);
@@ -603,8 +649,11 @@ export class WorldScene extends Phaser.Scene {
     this.bossStats.health = this.bossStats.maxHealth;
     this.bossStats.state = "idle";
     this.bossStats.hitDuringCharge = false;
+    this.bossStats.phaseTwo = false;
     this.boss.setPosition(1510, 760).setActive(true).setVisible(true).setAlpha(1).clearTint();
     this.bossName.setText("GUARDIÃO FENDIDO").setVisible(true).setAlpha(1);
+    this.bossHudName.setText("GUARDIÃO FENDIDO");
+    this.boss.setScale(1.8).setRotation(0);
     this.bossWorldBarBack.setVisible(true).setAlpha(1);
     this.bossWorldBar.setVisible(true).setAlpha(1);
     this.bossWorldBar.setSize(72, 4);
