@@ -468,57 +468,74 @@ export class WorldScene extends Phaser.Scene {
     if (!this.player || !this.hudPanel || !this.dialogPanel) return;
     const width = this.scale.width;
     const height = this.scale.height;
-    const hasTouch = Boolean(this.sys.game.device.input.touch);
-    const mobile = width < 760 || (hasTouch && width < 980);
+    const touchCapable = Boolean(
+      this.sys.game.device.input.touch ||
+      (typeof window !== "undefined" && (
+        "ontouchstart" in window ||
+        (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0)
+      ))
+    );
+    // Muitos celulares em modo paisagem têm mais de 980 px de largura.
+    // A capacidade de toque, e não a largura, identifica esses aparelhos.
+    const mobile = touchCapable || width < 760;
+    const mobileLandscape = mobile && width > height;
     this.isMobileLayout = mobile;
+    this.isMobileLandscape = mobileLandscape;
 
-    // Retrato no celular mostra uma área menor e mais próxima do personagem.
-    this.cameras.main.setZoom(mobile ? 0.9 : Math.min(1, width / 960));
+    this.cameras.main.setZoom(mobile ? (mobileLandscape ? 1.22 : 0.94) : Math.min(1, width / 960));
 
-    const panelX = mobile ? 12 : 18;
-    const panelY = mobile ? 12 : 18;
-    const panelW = mobile ? Math.min(width - 24, 244) : 270;
-    const panelH = mobile ? 54 : 58;
+    const panelX = mobile ? 14 : 18;
+    const panelY = mobile ? 14 : 18;
+    const panelW = mobile ? Math.min(width - 28, mobileLandscape ? 300 : 264) : 270;
+    const panelH = mobile ? 64 : 58;
     this.hudPanel.setPosition(panelX, panelY).setSize(panelW, panelH);
-    this.hudTitle.setPosition(panelX + 13, panelY + 9)
-      .setFontSize(mobile ? 10 : 12);
-    const barWidth = mobile ? Math.min(132, panelW - 90) : 180;
-    this.healthTrack.setPosition(panelX + 13, panelY + 34).setSize(barWidth, 7);
-    this.healthFill.setPosition(panelX + 13, panelY + 34).setSize(barWidth, 7);
-    this.healthText.setPosition(panelX + 20 + barWidth, panelY + 31)
-      .setFontSize(mobile ? 9 : 10);
+    this.hudTitle.setPosition(panelX + 14, panelY + 10)
+      .setFontSize(mobile ? 12 : 12);
+    const barWidth = mobile ? Math.min(mobileLandscape ? 172 : 144, panelW - 100) : 180;
+    this.healthTrack.setPosition(panelX + 14, panelY + 42).setSize(barWidth, 8);
+    this.healthFill.setPosition(panelX + 14, panelY + 42).setSize(barWidth, 8);
+    this.healthText.setPosition(panelX + 22 + barWidth, panelY + 39)
+      .setFontSize(mobile ? 10 : 10);
     this.keyboardHint.setPosition(width - 18, 20).setVisible(!mobile);
 
-    const left = mobile ? 62 : 58;
-    const bottom = height - (mobile ? 66 : 62);
+    const left = mobile ? (mobileLandscape ? 78 : 68) : 58;
+    const bottom = height - (mobile ? (mobileLandscape ? 78 : 72) : 62);
+    const spread = mobileLandscape ? 56 : 50;
+    const verticalSpread = mobileLandscape ? 48 : 44;
     const positions = [
       [left, bottom],
-      [left, bottom - 96],
-      [left - 48, bottom - 48],
-      [left + 48, bottom - 48]
+      [left, bottom - (mobileLandscape ? 100 : 88)],
+      [left - spread, bottom - verticalSpread],
+      [left + spread, bottom - verticalSpread]
     ];
     this.dpadButtons.forEach((button, index) => {
       const [x, y] = positions[index];
-      button.bg.setPosition(x, y).setVisible(mobile);
-      button.caption.setPosition(x, y).setVisible(mobile);
+      button.bg.setRadius(mobile ? 29 : 25).setPosition(x, y).setVisible(mobile);
+      button.caption.setPosition(x, y).setFontSize(mobile ? 24 : 20).setVisible(mobile);
     });
 
-    this.talkButton.setPosition(width - (mobile ? 68 : 76), height - (mobile ? 70 : 72))
+    this.talkButton.setPosition(width - (mobile ? 88 : 76), height - (mobile ? 82 : 72))
+      .setFontSize(mobile ? 14 : 12)
+      .setPadding(mobile ? { x: 18, y: 15 } : { x: 14, y: 12 })
       .setVisible(mobile && (Boolean(this.getNearbyNpc()) || this.dialogOpen));
 
-    const dialogWidth = Math.max(250, Math.min(width - (mobile ? 20 : 32), 620));
-    const dialogHeight = mobile ? 126 : 116;
+    const dialogWidth = mobile
+      ? Math.min(width - 28, mobileLandscape ? 760 : 520)
+      : Math.min(width - 32, 620);
+    const dialogHeight = mobile ? (mobileLandscape ? 112 : 126) : 116;
     const dialogX = width / 2;
-    const dialogY = mobile ? Math.max(150, height * 0.27) : height - 82;
+    const dialogY = mobile
+      ? (mobileLandscape ? height - 82 : height - 150)
+      : height - 82;
     this.dialogPanel.setPosition(dialogX, dialogY).setSize(dialogWidth, dialogHeight);
     const leftEdge = dialogX - dialogWidth / 2;
-    this.dialogName.setPosition(leftEdge + 14, dialogY - dialogHeight / 2 + 13)
-      .setFontSize(mobile ? 10 : 12);
-    this.dialogText.setPosition(leftEdge + 14, dialogY - dialogHeight / 2 + 39)
-      .setFontSize(mobile ? 11 : 13)
+    this.dialogName.setPosition(leftEdge + 14, dialogY - dialogHeight / 2 + 12)
+      .setFontSize(mobile ? 11 : 12);
+    this.dialogText.setPosition(leftEdge + 14, dialogY - dialogHeight / 2 + 36)
+      .setFontSize(mobile ? (mobileLandscape ? 13 : 12) : 13)
       .setWordWrapWidth(dialogWidth - 28);
-    this.dialogHint.setPosition(leftEdge + dialogWidth - 12, dialogY + dialogHeight / 2 - 10)
-      .setFontSize(mobile ? 8 : 9);
+    this.dialogHint.setPosition(leftEdge + dialogWidth - 12, dialogY + dialogHeight / 2 - 9)
+      .setFontSize(mobile ? 9 : 9);
 
     this.npcPrompt.setPosition(width / 2, mobile ? 86 : 104)
       .setFontSize(mobile ? 9 : 11);
