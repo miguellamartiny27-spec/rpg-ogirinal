@@ -396,6 +396,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.activeNpc = npc;
     this.dialogOpen = true;
+    this.npcPrompt.setVisible(false);
     this.dialogIndex = 0;
     this.dialogName.setText(npc.name).setVisible(true);
     this.dialogText.setText(npc.dialogue[0]).setVisible(true);
@@ -539,14 +540,14 @@ export class WorldScene extends Phaser.Scene {
     }
 
     const nearbyNpc = this.getNearbyNpc();
-    this.talkButton.setVisible(Boolean(nearbyNpc) || this.dialogOpen);
+    this.talkButton.setVisible(this.isMobileLayout && (Boolean(nearbyNpc) || this.dialogOpen));
     if (this.dialogOpen) {
       this.player.setVelocity(0, 0);
       return;
     }
     if (nearbyNpc) {
       this.npcPrompt.setText(`E  •  CONVERSAR COM ${nearbyNpc.title}`)
-        .setPosition(this.scale.width / 2, 104).setVisible(true);
+        .setPosition(this.scale.width / 2, this.isMobileLayout ? 86 : 104).setVisible(true);
     } else {
       this.npcPrompt.setVisible(false);
     }
