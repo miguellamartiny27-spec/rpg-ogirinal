@@ -405,32 +405,36 @@ export class WorldScene extends Phaser.Scene {
   }
 
   createControls() {
-    this.dpadButtons = [];
-    const makeButton = (label, dx, dy) => {
-      const bg = this.add.circle(0, 0, 25, 0x17231e, 0.76)
-        .setScrollFactor(0).setDepth(3000).setStrokeStyle(2, 0xc6b27d, 0.85)
-        .setInteractive();
-      const caption = this.add.text(0, 0, label, {
-        fontSize: "20px", color: "#f5e9c9", fontStyle: "bold"
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(3001);
-      this.dpadButtons.push({ bg, caption, dx, dy });
+    this.joystickBase = this.add.circle(0, 0, 58, 0x17231e, 0.66)
+      .setScrollFactor(0).setDepth(3000)
+      .setStrokeStyle(2, 0xc6b27d, 0.9).setInteractive();
+    this.joystickKnob = this.add.circle(0, 0, 25, 0xd8c99f, 0.9)
+      .setScrollFactor(0).setDepth(3001)
+      .setStrokeStyle(2, 0x354936, 0.95);
+    this.joystickActive = false;
+    this.joystickPointerId = null;
 
-      const press = () => { this.touchDirection.x = dx; this.touchDirection.y = dy; };
-      const release = () => {
-        if (this.touchDirection.x === dx && this.touchDirection.y === dy) {
-          this.touchDirection.x = 0;
-          this.touchDirection.y = 0;
-        }
-      };
-      bg.on("pointerdown", press);
-      bg.on("pointerup", release);
-      bg.on("pointerout", release);
+    this.joystickBase.on("pointerdown", (pointer) => {
+      this.joystickActive = true;
+      this.joystickPointerId = pointer.id;
+      this.updateJoystick(pointer);
+    });
+    this.input.on("pointermove", (pointer) => {
+      if (this.joystickActive && pointer.id === this.joystickPointerId && pointer.isDown) {
+        this.updateJoystick(pointer);
+      }
+    });
+    const releaseJoystick = (pointer) => {
+      if (this.joystickActive && (!pointer || pointer.id === this.joystickPointerId)) {
+        this.joystickActive = false;
+        this.joystickPointerId = null;
+        this.touchDirection.x = 0;
+        this.touchDirection.y = 0;
+        this.joystickKnob.setPosition(this.joystickBase.x, this.joystickBase.y);
+      }
     };
-
-    makeButton("↓", 0, 1);
-    makeButton("↑", 0, -1);
-    makeButton("←", -1, 0);
-    makeButton("→", 1, 0);
+    this.input.on("pointerup", releaseJoystick);
+    this.input.on("pointerupoutside", releaseJoystick);
 
     this.talkButton = this.add.text(0, 0, "FALAR", {
       fontSize: "12px", color: "#fff0c5", backgroundColor: "#263d4fe8",
@@ -438,6 +442,19 @@ export class WorldScene extends Phaser.Scene {
     }).setOrigin(0.5).setScrollFactor(0).setDepth(4200).setInteractive()
       .setVisible(false);
     this.talkButton.on("pointerdown", () => this.requestInteraction());
+  }
+
+  updateJoystick(pointer) {
+    const dx = pointer.x - this.joystickBase.x;
+    const dy = pointer.y - this.joystickBase.y;
+    const distance = Math.hypot(dx, dy);
+    const maxDistance = 39;
+    const scale = distance > maxDistance ? maxDistance / distance : 1;
+    const knobX = this.joystickBase.x + dx * scale;
+    const knobY = this.joystickBase.y + dy * scale;
+    this.joystickKnob.setPosition(knobX, knobY);
+    this.touchDirection.x = distance > 7 ? (knobX - this.joystickBase.x) / maxDistance : 0;
+    this.touchDirection.y = distance > 7 ? (knobY - this.joystickBase.y) / maxDistance : 0;
   }
 
   createHud() {
@@ -498,25 +515,17 @@ export class WorldScene extends Phaser.Scene {
       .setFontSize(mobile ? 10 : 10);
     this.keyboardHint.setPosition(width - 18, 20).setVisible(!mobile);
 
-    const left = mobile ? (mobileLandscape ? 78 : 68) : 58;
-    const bottom = height - (mobile ? (mobileLandscape ? 78 : 72) : 62);
-    const spread = mobileLandscape ? 56 : 50;
-    const verticalSpread = mobileLandscape ? 48 : 44;
-    const positions = [
-      [left, bottom],
-      [left, bottom - (mobileLandscape ? 100 : 88)],
-      [left - spread, bottom - verticalSpread],
-      [left + spread, bottom - verticalSpread]
-    ];
-    this.dpadButtons.forEach((button, index) => {
-      const [x, y] = positions[index];
-      button.bg.setRadius(mobile ? 29 : 25).setPosition(x, y).setVisible(mobile);
-      button.caption.setPosition(x, y).setFontSize(mobile ? 24 : 20).setVisible(mobile);
-    });
+    const joystickX = mobile ? (mobileLandscape ? 92 : 82) : 58;
+    const joystickY = height - (mobile ? (mobileLandscape ? 94 : 102) : 62);
+    this.joystickBase.setPosition(joystickX, joystickY).setVisible(mobile);
+    this.joystickKnob.setPosition(
+      this.joystickActive ? this.joystickKnob.x : joystickX,
+      this.joystickActive ? this.joystickKnob.y : joystickY
+    ).setVisible(mobile);
 
-    this.talkButton.setPosition(width - (mobile ? 88 : 76), height - (mobile ? 82 : 72))
+    this.talkButton.setPosition(width - (mobile ? 92 : 76), height - (mobile ? 88 : 72))
       .setFontSize(mobile ? 14 : 12)
-      .setPadding(mobile ? { x: 18, y: 15 } : { x: 14, y: 12 })
+      .setPadding(mobile ? 18 : 14, mobile ? 15 : 12, mobile ? 18 : 14, mobile ? 15 : 12)
       .setVisible(mobile && (Boolean(this.getNearbyNpc()) || this.dialogOpen));
 
     const dialogWidth = mobile
