@@ -495,6 +495,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   createControls() {
+    this.input.addPointer(2);
     this.joystickBase = this.add.circle(0, 0, 58, 0x17231e, 0.66)
       .setScrollFactor(0).setDepth(3000)
       .setStrokeStyle(2, 0xc6b27d, 0.9).setInteractive();
@@ -654,7 +655,7 @@ export class WorldScene extends Phaser.Scene {
       .setFontSize(mobile ? 9 : 11);
   }
 
-  update() {
+  update(time, delta) {
     if (!this.player || !this.keys) return;
     const speed = 145;
     let x = 0;
@@ -681,6 +682,7 @@ export class WorldScene extends Phaser.Scene {
     this.updateEnemy();
     if(!this.playerBusy&&!this.isDodging)this.playerStats.stamina=Math.min(100,this.playerStats.stamina+delta*0.022);
     const barW=this.isMobileLayout?Math.min(this.isMobileLandscape?172:144,Math.min(this.scale.width-28,this.isMobileLandscape?300:264)-100):180;
+    this.healthText.setText(`${Math.ceil(this.playerStats.health)}/100`);
     this.healthFill.setSize(barW*this.playerStats.health/100,7);
     this.staminaFill.setSize(barW*this.playerStats.stamina/100,6);
     if (nearbyNpc) {
