@@ -17,10 +17,10 @@ export class WorldScene extends Phaser.Scene {
 
     this.cameras.main.setBounds(0, 0, WORLD.width, WORLD.height);
     this.cameras.main.startFollow(this.player, true, 0.09, 0.09);
-    this.cameras.main.setZoom(Math.min(1, this.scale.width / 760));
-
     this.keys = this.input.keyboard.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT");
     this.physics.world.setBounds(0, 0, WORLD.width, WORLD.height);
+    this.scale.on("resize", this.layoutInterface, this);
+    this.layoutInterface();
   }
 
   createTextures() {
@@ -404,13 +404,15 @@ export class WorldScene extends Phaser.Scene {
   }
 
   createControls() {
-    const makeButton = (x, y, label, dx, dy) => {
-      const bg = this.add.circle(x, y, 25, 0x17231e, 0.72)
-        .setScrollFactor(0).setDepth(3000).setStrokeStyle(2, 0xc6b27d, 0.8)
+    this.dpadButtons = [];
+    const makeButton = (label, dx, dy) => {
+      const bg = this.add.circle(0, 0, 25, 0x17231e, 0.76)
+        .setScrollFactor(0).setDepth(3000).setStrokeStyle(2, 0xc6b27d, 0.85)
         .setInteractive();
-      this.add.text(x, y, label, {
+      const caption = this.add.text(0, 0, label, {
         fontSize: "20px", color: "#f5e9c9", fontStyle: "bold"
       }).setOrigin(0.5).setScrollFactor(0).setDepth(3001);
+      this.dpadButtons.push({ bg, caption, dx, dy });
 
       const press = () => { this.touchDirection.x = dx; this.touchDirection.y = dy; };
       const release = () => {
@@ -424,15 +426,13 @@ export class WorldScene extends Phaser.Scene {
       bg.on("pointerout", release);
     };
 
-    const left = 58;
-    const bottom = this.scale.height - 62;
-    makeButton(left, bottom, "↓", 0, 1);
-    makeButton(left, bottom - 106, "↑", 0, -1);
-    makeButton(left - 52, bottom - 53, "←", -1, 0);
-    makeButton(left + 52, bottom - 53, "→", 1, 0);
+    makeButton("↓", 0, 1);
+    makeButton("↑", 0, -1);
+    makeButton("←", -1, 0);
+    makeButton("→", 1, 0);
 
-    this.talkButton = this.add.text(this.scale.width - 72, this.scale.height - 72, "FALAR", {
-      fontSize: "12px", color: "#fff0c5", backgroundColor: "#263d2fe8",
+    this.talkButton = this.add.text(0, 0, "FALAR", {
+      fontSize: "12px", color: "#fff0c5", backgroundColor: "#263d4fe8",
       padding: { x: 14, y: 12 }, fontStyle: "bold"
     }).setOrigin(0.5).setScrollFactor(0).setDepth(4200).setInteractive()
       .setVisible(false);
@@ -440,27 +440,87 @@ export class WorldScene extends Phaser.Scene {
   }
 
   createHud() {
-    this.add.rectangle(18, 18, 270, 58, 0x14211f, 0.84)
+    this.hudPanel = this.add.rectangle(18, 18, 270, 58, 0x14211f, 0.86)
       .setOrigin(0).setScrollFactor(0).setDepth(4000)
       .setStrokeStyle(1, 0xbda46d, 0.75);
 
-    this.add.text(32, 27, "VIAJANTE  •  NÍVEL 1", {
+    this.hudTitle = this.add.text(32, 27, "VIAJANTE  •  NÍVEL 1", {
       fontSize: "12px", color: "#e8d8ad", fontStyle: "bold", letterSpacing: 1
     }).setScrollFactor(0).setDepth(4001);
 
-    this.add.rectangle(32, 51, 180, 8, 0x39463c)
+    this.healthTrack = this.add.rectangle(32, 51, 180, 8, 0x39463c)
       .setOrigin(0).setScrollFactor(0).setDepth(4001);
-    this.add.rectangle(32, 51, 180, 8, 0x8d4e48)
+    this.healthFill = this.add.rectangle(32, 51, 180, 8, 0x8d4e48)
       .setOrigin(0).setScrollFactor(0).setDepth(4002);
 
-    this.add.text(224, 47, "100/100", {
+    this.healthText = this.add.text(224, 47, "100/100", {
       fontSize: "10px", color: "#f4edda"
     }).setScrollFactor(0).setDepth(4002);
 
-    this.add.text(this.scale.width - 18, 20, "WASD / SETAS", {
+    this.keyboardHint = this.add.text(this.scale.width - 18, 20, "WASD / SETAS", {
       fontSize: "11px", color: "#e8d8ad", backgroundColor: "#14211fcc",
       padding: { x: 9, y: 7 }
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(4000);
+  }
+
+  layoutInterface() {
+    if (!this.player || !this.hudPanel || !this.dialogPanel) return;
+    const width = this.scale.width;
+    const height = this.scale.height;
+    const hasTouch = Boolean(this.sys.game.device.input.touch);
+    const mobile = width < 760 || (hasTouch && width < 980);
+    this.isMobileLayout = mobile;
+
+    // Retrato no celular mostra uma área menor e mais próxima do personagem.
+    this.cameras.main.setZoom(mobile ? 0.9 : Math.min(1, width / 960));
+
+    const panelX = mobile ? 12 : 18;
+    const panelY = mobile ? 12 : 18;
+    const panelW = mobile ? Math.min(width - 24, 244) : 270;
+    const panelH = mobile ? 54 : 58;
+    this.hudPanel.setPosition(panelX, panelY).setSize(panelW, panelH);
+    this.hudTitle.setPosition(panelX + 13, panelY + 9)
+      .setFontSize(mobile ? 10 : 12);
+    const barWidth = mobile ? Math.min(132, panelW - 90) : 180;
+    this.healthTrack.setPosition(panelX + 13, panelY + 34).setSize(barWidth, 7);
+    this.healthFill.setPosition(panelX + 13, panelY + 34).setSize(barWidth, 7);
+    this.healthText.setPosition(panelX + 20 + barWidth, panelY + 31)
+      .setFontSize(mobile ? 9 : 10);
+    this.keyboardHint.setPosition(width - 18, 20).setVisible(!mobile);
+
+    const left = mobile ? 62 : 58;
+    const bottom = height - (mobile ? 66 : 62);
+    const positions = [
+      [left, bottom],
+      [left, bottom - 96],
+      [left - 48, bottom - 48],
+      [left + 48, bottom - 48]
+    ];
+    this.dpadButtons.forEach((button, index) => {
+      const [x, y] = positions[index];
+      button.bg.setPosition(x, y).setVisible(mobile);
+      button.caption.setPosition(x, y).setVisible(mobile);
+    });
+
+    this.talkButton.setPosition(width - (mobile ? 68 : 76), height - (mobile ? 70 : 72))
+      .setVisible(mobile && (Boolean(this.getNearbyNpc()) || this.dialogOpen));
+
+    const dialogWidth = Math.max(250, Math.min(width - (mobile ? 20 : 32), 620));
+    const dialogHeight = mobile ? 126 : 116;
+    const dialogX = width / 2;
+    const dialogY = mobile ? Math.max(150, height * 0.27) : height - 82;
+    this.dialogPanel.setPosition(dialogX, dialogY).setSize(dialogWidth, dialogHeight);
+    const leftEdge = dialogX - dialogWidth / 2;
+    this.dialogName.setPosition(leftEdge + 14, dialogY - dialogHeight / 2 + 13)
+      .setFontSize(mobile ? 10 : 12);
+    this.dialogText.setPosition(leftEdge + 14, dialogY - dialogHeight / 2 + 39)
+      .setFontSize(mobile ? 11 : 13)
+      .setWordWrapWidth(dialogWidth - 28);
+    this.dialogHint.setPosition(leftEdge + dialogWidth - 12, dialogY + dialogHeight / 2 - 10)
+      .setFontSize(mobile ? 8 : 9);
+
+    this.npcPrompt.setPosition(width / 2, mobile ? 86 : 104)
+      .setFontSize(mobile ? 9 : 11);
   }
 
   update() {
