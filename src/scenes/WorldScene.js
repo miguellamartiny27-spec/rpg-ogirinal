@@ -83,6 +83,13 @@ export class WorldScene extends Phaser.Scene {
     tree.generateTexture("tree", 48, 52);
     tree.destroy();
 
+    const stump = this.make.graphics({ x: 0, y: 0, add: false });
+    stump.fillStyle(0x493326); stump.fillEllipse(16, 11, 27, 15);
+    stump.fillStyle(0x98714b); stump.fillEllipse(16, 9, 18, 10);
+    stump.lineStyle(2, 0x65472f, 1); stump.strokeCircle(16, 9, 6);
+    stump.generateTexture("tree-stump", 32, 22);
+    stump.destroy();
+
     const rock = this.make.graphics({ x: 0, y: 0, add: false });
     rock.fillStyle(0x68756b); rock.fillEllipse(18, 14, 31, 22);
     rock.fillStyle(0x879184); rock.fillEllipse(13, 9, 13, 7);
@@ -199,6 +206,7 @@ export class WorldScene extends Phaser.Scene {
     map.fillEllipse(1430, 235, 300, 95);
 
     this.obstacles = this.physics.add.staticGroup();
+    this.trees = [];
     const treePositions = [
       [170,150],[290,230],[470,120],[620,210],[790,130],[1030,150],[1180,430],
       [1540,500],[1660,680],[1450,900],[1250,1030],[930,990],[620,930],[300,900],
@@ -208,6 +216,8 @@ export class WorldScene extends Phaser.Scene {
       const tree = this.add.image(x, y, "tree").setOrigin(0.5, 0.82);
       this.obstacles.add(tree);
       tree.body.setSize(22, 18).setOffset(13, 29);
+      tree.setData("isTree", true).setData("treeHealth", 3);
+      this.trees.push(tree);
       tree.setDepth(y);
     });
 
@@ -338,7 +348,12 @@ export class WorldScene extends Phaser.Scene {
     this.boss.body.setSize(30, 28).setOffset(13, 23);
     this.boss.setMaxVelocity(390, 390);
     this.bossStats = { health: 360, maxHealth: 360, state: "idle", hitDuringCharge: false, phaseTwo: false };
-    this.physics.add.collider(this.boss, this.obstacles);
+    this.physics.add.collider(this.boss, this.obstacles, (boss, obstacle) => {
+      // O Guardião destrói árvores ao trombar nelas, em vez de ficar preso atrás delas.
+      if (obstacle.active && obstacle.getData("isTree")) {
+        this.damageTree(obstacle, 3, "boss");
+      }
+    });
     this.bossName = this.add.text(this.boss.x, this.boss.y - 65, "GUARDIÃO FENDIDO", {
       fontSize: "12px", color: "#e8d3a0", fontStyle: "bold",
       stroke: "#251f1a", strokeThickness: 4, letterSpacing: 1
@@ -387,6 +402,19 @@ export class WorldScene extends Phaser.Scene {
       targets: slash, alpha: 0, scaleX: 1.28,
       duration: heavy ? 270 : 190, onComplete: () => slash.destroy()
     });
+
+    // Árvores recebem dano quando o jogador acerta o tronco na direção da mira.
+    this.trees.slice().forEach((tree) => {
+      if (!tree.active) return;
+      const tx = tree.x - this.player.x;
+      const ty = (tree.y - 12) - this.player.y;
+      const treeDistance = Math.hypot(tx, ty);
+      const treeFacing = treeDistance > 0 ? (tx * aim.x + ty * aim.y) / treeDistance : 1;
+      if (treeDistance <= (heavy ? 112 : 88) && treeFacing >= 0.48) {
+        this.damageTree(tree, heavy ? 2 : 1, "player");
+      }
+    });
+
     // Alcance frontal com uma abertura de aproximadamente 100 graus.
     if (this.enemy.active && this.enemyStats.health > 0 &&
         distance <= reach && facing >= 0.58) {
@@ -512,6 +540,56 @@ export class WorldScene extends Phaser.Scene {
       this.playerInvulnerable = false;
       if (this.player.active) this.player.setAlpha(1);
     });
+  }
+
+  damageTree(tree, amount, source = "player") {
+    if (!tree || !tree.active || !tree.getData("isTree")) return;
+    const health = Math.max(0, (tree.getData("treeHealth") || 3) - amount);
+    tree.setData("treeHealth", health);
+
+    if (health > 0) {
+      tree.setTint(0xe5c17a);
+      this.time.delayedCall(110, () => { if (tree.active) tree.clearTint(); });
+      const chips = this.add.text(tree.x, tree.y - 42, source === "boss" ? "CRACK!" : "−" + amount, {
+        fontSize: "10px", color: "#f2d49a", fontStyle: "bold",
+        stroke: "#38291f", strokeThickness: 3
+      }).setOrigin(0.5).setDepth(5000);
+      this.tweens.add({ targets: chips, y: chips.y - 22, alpha: 0, duration: 430, onComplete: () => chips.destroy() });
+      return;
+    }
+
+    const x = tree.x;
+    const y = tree.y;
+    this.obstacles.remove(tree, true, true);
+    this.trees = this.trees.filter((item) => item !== tree);
+
+    // O tronco cai e deixa um toco baixo, sem colisão.
+    const stump = this.add.image(x, y - 3, "tree-stump").setDepth(y + 1);
+    this.tweens.add({
+      targets: stump, angle: source === "boss" ? 24 : 12, alpha: 0.92,
+      duration: 180, yoyo: true, hold: 80
+    });
+
+    for (let i = 0; i < 7; i++) {
+      const piece = this.add.rectangle(
+        x + Phaser.Math.Between(-9, 9), y - Phaser.Math.Between(15, 38),
+        Phaser.Math.Between(4, 8), Phaser.Math.Between(4, 7),
+        i % 2 ? 0x477348 : 0x6b8a4d
+      ).setDepth(y + 12);
+      this.tweens.add({
+        targets: piece,
+        x: piece.x + Phaser.Math.Between(-38, 38),
+        y: piece.y + Phaser.Math.Between(12, 42),
+        angle: Phaser.Math.Between(-180, 180), alpha: 0,
+        duration: 420, onComplete: () => piece.destroy()
+      });
+    }
+    this.cameras.main.shake(source === "boss" ? 180 : 90, source === "boss" ? 0.006 : 0.0025);
+    const label = this.add.text(x, y - 48, "ÁRVORE DERRUBADA", {
+      fontSize: "9px", color: "#d8c18b", fontStyle: "bold",
+      stroke: "#30251d", strokeThickness: 3
+    }).setOrigin(0.5).setDepth(5000);
+    this.tweens.add({ targets: label, y: label.y - 24, alpha: 0, duration: 700, onComplete: () => label.destroy() });
   }
 
   enterBossPhaseTwo() {
