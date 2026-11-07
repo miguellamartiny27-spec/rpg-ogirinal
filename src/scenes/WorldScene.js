@@ -1111,7 +1111,8 @@ export class WorldScene extends Phaser.Scene {
     this.tutorialText.setPosition(width / 2, mobile ? (mobileLandscape ? 149 : 177) : 99)
       .setWordWrapWidth(Math.min(width - 54, mobile ? 470 : 520));
     this.resourceText.setPosition(panelX + 14, panelY + panelH + 8);
-    this.craftButton.setPosition(width - (mobile ? 88 : 86), height - (mobile ? 245 : 72))
+    const craftButtonY = mobile ? (mobileLandscape ? 58 : height - 245) : height - 72;
+    this.craftButton.setPosition(width - (mobile ? 88 : 86), craftButtonY)
       .setVisible(mobile);
     const craftW = Math.min(width - 28, mobile ? 320 : 370);
     const craftY = height / 2;
