@@ -328,7 +328,7 @@ export class WorldScene extends Phaser.Scene {
 
   createCombat() {
     this.playerStats = { health: 100, stamina: 100 };
-    this.resources = { wood: 0, stone: 0 };
+    this.resources = { wood: 0 };
     this.craftedItems = [];
     this.weapon = null;
     this.lastAimVector = new Phaser.Math.Vector2(0, 1);
@@ -516,7 +516,7 @@ export class WorldScene extends Phaser.Scene {
     this.trees = this.trees.filter((item) => item !== tree);
     if (source === "player") {
       this.resources.wood += 2;
-      if (this.resourceText) this.resourceText.setText(`MADEIRA ${this.resources.wood}  •  PEDRA ${this.resources.stone}`);
+      if (this.resourceText) this.resourceText.setText(`MADEIRA ${this.resources.wood}`);
       const loot = this.add.text(x, y - 58, "+2 MADEIRA", {
         fontSize: "10px", color: "#f0d49a", fontStyle: "bold",
         stroke: "#38291f", strokeThickness: 3
@@ -861,7 +861,7 @@ export class WorldScene extends Phaser.Scene {
         fontSize: "11px", color: "#f4edda", align: "center",
         wordWrap: { width: 520 }, lineSpacing: 3
       }).setOrigin(0.5).setScrollFactor(0).setDepth(4501);
-    this.resourceText = this.add.text(32, 100, "MADEIRA 0  •  PEDRA 0", {
+    this.resourceText = this.add.text(32, 100, "MADEIRA 0", {
       fontSize: "10px", color: "#f0dfb2", fontStyle: "bold",
       backgroundColor: "#14211fcc", padding: { x: 7, y: 5 }
     }).setScrollFactor(0).setDepth(4500);
@@ -902,7 +902,7 @@ export class WorldScene extends Phaser.Scene {
       if (travelled >= 120) {
         this.tutorialStage = 2;
         this.tutorialPhaseText.setText("ETAPA 2 DE 3  •  COLETA DE RECURSOS");
-        this.tutorialText.setText("Acerte as árvores para conseguir madeira. J ou GOLPE usa ataque leve; K ou FORTE causa mais dano.");
+        this.tutorialText.setText("Acerte as árvores para conseguir madeira. J ou GOLPE usa ataque leve. K ou FORTE causa mais dano, mas gasta mais energia.");
       }
     } else if (this.tutorialStage === 2 && this.resources.wood >= 5) {
       this.tutorialStage = 3;
