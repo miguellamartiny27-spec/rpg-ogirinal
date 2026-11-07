@@ -563,7 +563,7 @@ export class WorldScene extends Phaser.Scene {
         this.damagePlayer(this.bossStats.phaseTwo ? 34 : 28);
         this.boss.setVelocity(0, 0);
         this.bossStats.state = "recovery";
-        this.time.delayedCall(1050, () => {
+        this.time.delayedCall(this.bossStats.phaseTwo ? 700 : 1050, () => {
           if (this.boss.active && this.bossStats.health > 0) this.bossStats.state = "chasing";
         });
       }
