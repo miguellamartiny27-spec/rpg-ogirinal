@@ -26,14 +26,52 @@ export class WorldScene extends Phaser.Scene {
     if (this.textures.exists("hero")) return;
 
     const hero = this.make.graphics({ x: 0, y: 0, add: false });
-    hero.fillStyle(0x253b35); hero.fillRect(7, 2, 18, 28);
-    hero.fillStyle(0xe6b987); hero.fillRect(9, 2, 14, 12);
-    hero.fillStyle(0x5a382b); hero.fillRect(8, 0, 16, 5);
-    hero.fillStyle(0x3f6d91); hero.fillRect(7, 14, 18, 12);
-    hero.fillStyle(0xddd2b5); hero.fillRect(8, 26, 7, 6); hero.fillRect(18, 26, 7, 6);
-    hero.fillStyle(0x27312d); hero.fillRect(12, 7, 2, 2); hero.fillRect(19, 7, 2, 2);
-    hero.generateTexture("hero", 32, 34);
+    const frameW = 32, frameH = 36;
+    const drawHero = (ox, oy, dir, step) => {
+      const px = (x, y, w, h, color) => { hero.fillStyle(color, 1); hero.fillRect(ox + x, oy + y, w, h); };
+      const skin = 0xe8b887, hair = 0x513528, coat = 0x315f86, dark = 0x26332f, boot = 0x49352b;
+      // sombra
+      px(7, 30, 18, 4, 0x354b35);
+      // pernas e botas
+      if (dir === "up" || dir === "down") {
+        px(10, 23, 5, 8, 0x344c60); px(18, 23, 5, 8, 0x344c60);
+        px(step % 2 ? 8 : 10, 29, 7, 5, boot); px(step % 2 ? 18 : 16, 29, 7, 5, boot);
+      } else {
+        px(12, 23, 6, 8, 0x344c60); px(step % 2 ? 16 : 11, 29, 8, 5, boot);
+      }
+      // corpo, braços e mochila
+      if (dir === "up") px(7, 12, 5, 12, 0x76523b);
+      px(8, 13, 16, 12, coat); px(6, 15, 4, 9, skin); px(22, 15, 4, 9, skin);
+      px(10, 13, 12, 3, 0x477da0); px(13, 17, 5, 7, 0xc5a66c);
+      // cabeça e cabelo
+      px(9, 3, 14, 12, skin); px(8, 2, 16, 6, hair); px(8, 6, 3, 5, hair); px(21, 6, 3, 5, hair);
+      if (dir === "down") { px(12, 8, 2, 2, dark); px(19, 8, 2, 2, dark); }
+      if (dir === "left") { px(10, 8, 2, 2, dark); px(8, 5, 4, 5, hair); }
+      if (dir === "right") { px(20, 8, 2, 2, dark); px(20, 5, 4, 5, hair); }
+      if (dir === "up") { px(9, 2, 14, 10, hair); px(11, 10, 10, 3, hair); }
+      // detalhes
+      px(9, 14, 2, 5, 0x6e9ab0); px(21, 14, 2, 5, 0x6e9ab0);
+    };
+    const directions = ["down", "left", "right", "up"];
+    directions.forEach((dir, row) => {
+      for (let frame = 0; frame < 4; frame++) drawHero(frame * frameW, row * frameH, dir, frame);
+    });
+    hero.generateTexture("hero-sheet", frameW * 4, frameH * 4);
     hero.destroy();
+    const heroTexture = this.textures.get("hero-sheet");
+    directions.forEach((dir, row) => {
+      for (let frame = 0; frame < 4; frame++) {
+        heroTexture.add(`${dir}-${frame}`, 0, frame * frameW, row * frameH, frameW, frameH);
+      }
+    });
+    directions.forEach((dir) => {
+      this.anims.create({
+        key: `hero-walk-${dir}`,
+        frames: [0, 1, 2, 3].map((frame) => ({ key: "hero-sheet", frame: `${dir}-${frame}` })),
+        frameRate: 8,
+        repeat: -1
+      });
+    });
 
     const tree = this.make.graphics({ x: 0, y: 0, add: false });
     tree.fillStyle(0x4a3528); tree.fillRect(18, 25, 12, 25);
@@ -118,7 +156,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   createPlayer() {
-    this.player = this.physics.add.sprite(820, 610, "hero");
+    this.player = this.physics.add.sprite(820, 610, "hero-sheet", "down-0");
     this.player.setDepth(this.player.y);
     this.player.setCollideWorldBounds(true);
     this.player.body.setSize(18, 14).setOffset(7, 18);
@@ -198,7 +236,13 @@ export class WorldScene extends Phaser.Scene {
     const direction = new Phaser.Math.Vector2(x, y).normalize();
     this.player.setVelocity(direction.x * speed, direction.y * speed);
     this.player.setDepth(this.player.y);
-    if (x < 0) this.player.setFlipX(true);
-    else if (x > 0) this.player.setFlipX(false);
+    if (x !== 0 || y !== 0) {
+      const dir = Math.abs(x) > Math.abs(y) ? (x < 0 ? "left" : "right") : (y < 0 ? "up" : "down");
+      this.player.anims.play(`hero-walk-${dir}`, true);
+      this.lastHeroDirection = dir;
+    } else {
+      this.player.anims.stop();
+      this.player.setFrame(`${this.lastHeroDirection || "down"}-0`);
+    }
   }
 }
