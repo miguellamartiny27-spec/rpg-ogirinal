@@ -320,7 +320,6 @@ export class WorldScene extends Phaser.Scene {
   createPlayer() {
     this.player = this.physics.add.sprite(820, 610, "hero-sheet", "down-0");
     this.player.setDepth(this.player.y);
-    this.updateTutorialProgress();
     this.player.setCollideWorldBounds(true);
     this.player.body.setSize(18, 14).setOffset(7, 18);
     this.player.setMaxVelocity(155, 155);
@@ -825,7 +824,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   requestInteraction() {
-    if (this.dialogOpen || this.craftOpen) {
+    if (this.dialogOpen) {
       if (this.activeNpc && this.dialogIndex < this.activeNpc.dialogue.length - 1) {
         this.dialogIndex += 1;
         this.dialogText.setText(this.activeNpc.dialogue[this.dialogIndex]);
@@ -1069,7 +1068,7 @@ export class WorldScene extends Phaser.Scene {
     this.healthText.setPosition(panelX+22+barWidth,panelY+36).setFontSize(10);
     this.staminaTrack.setPosition(panelX+14,panelY+54).setSize(barWidth,6);
     this.staminaFill.setPosition(panelX+14,panelY+54).setSize(barWidth,6);
-    this.keyboardHint.setText("WASD • J/K • ESPAÇO").setPosition(width-18,20).setVisible(!mobile);
+    this.keyboardHint.setText("WASD • J/K • ESPAÇO • C").setPosition(width-18,20).setVisible(!mobile);
     const combatY=height-(mobile?92:72), combatXs=[width-220,width-145,width-70];
     this.combatButtons.forEach((b,i)=>{b.bg.setPosition(combatXs[i],combatY).setVisible(mobile);b.txt.setPosition(combatXs[i],combatY).setVisible(mobile);});
 
@@ -1106,13 +1105,13 @@ export class WorldScene extends Phaser.Scene {
 
     this.npcPrompt.setPosition(width / 2, mobile ? 86 : 104)
       .setFontSize(mobile ? 9 : 11);
-    this.tutorialPanel.setPosition(width / 2, mobile ? (mobileLandscape ? 112 : 130) : 92)
+    this.tutorialPanel.setPosition(width / 2, mobile ? (mobileLandscape ? 142 : 170) : 92)
       .setSize(Math.min(width - 28, mobile ? 520 : 560), mobile ? 76 : 70);
-    this.tutorialPhaseText.setPosition(width / 2, mobile ? (mobileLandscape ? 88 : 106) : 69);
-    this.tutorialText.setPosition(width / 2, mobile ? (mobileLandscape ? 119 : 137) : 99)
+    this.tutorialPhaseText.setPosition(width / 2, mobile ? (mobileLandscape ? 118 : 146) : 69);
+    this.tutorialText.setPosition(width / 2, mobile ? (mobileLandscape ? 149 : 177) : 99)
       .setWordWrapWidth(Math.min(width - 54, mobile ? 470 : 520));
     this.resourceText.setPosition(panelX + 14, panelY + panelH + 8);
-    this.craftButton.setPosition(width - (mobile ? 88 : 86), height - (mobile ? 166 : 72))
+    this.craftButton.setPosition(width - (mobile ? 88 : 86), height - (mobile ? 245 : 72))
       .setVisible(mobile);
     const craftW = Math.min(width - 28, mobile ? 320 : 370);
     const craftY = height / 2;
@@ -1134,14 +1133,14 @@ export class WorldScene extends Phaser.Scene {
     if (this.keys.W.isDown || this.keys.UP.isDown) y -= 1;
     if (this.keys.S.isDown || this.keys.DOWN.isDown) y += 1;
 
-    if (Phaser.Input.Keyboard.JustDown(this.interactionKey)) {
+    if (!this.craftOpen && Phaser.Input.Keyboard.JustDown(this.interactionKey)) {
       this.requestInteraction();
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.craftKey)) this.toggleCrafting();
     const nearbyNpc = this.getNearbyNpc();
     this.talkButton.setVisible(this.isMobileLayout && (Boolean(nearbyNpc) || this.dialogOpen));
-    if (this.dialogOpen) {
+    if (this.dialogOpen || this.craftOpen) {
       this.player.setVelocity(0, 0);
       return;
     }
@@ -1178,6 +1177,7 @@ export class WorldScene extends Phaser.Scene {
     }
     if(!this.isDodging&&!this.playerBusy)this.player.setVelocity(direction.x*speed,direction.y*speed);
     this.player.setDepth(this.player.y);
+    this.updateTutorialProgress();
     if (x !== 0 || y !== 0) {
       const dir = Math.abs(x) > Math.abs(y) ? (x < 0 ? "left" : "right") : (y < 0 ? "up" : "down");
       this.player.anims.play(`hero-walk-${dir}`, true);
