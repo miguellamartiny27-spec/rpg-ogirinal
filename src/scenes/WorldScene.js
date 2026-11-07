@@ -407,8 +407,7 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     if (nearNpc) {
-      const point = this.cameras.main.getWorldPoint(this.scale.width / 2, this.scale.height / 2 - 65);
-      this.npcPrompt.setPosition(point.x, point.y).setVisible(true);
+      this.npcPrompt.setPosition(this.scale.width / 2, 104).setVisible(true);
     } else {
       this.npcPrompt.setVisible(false);
     }
