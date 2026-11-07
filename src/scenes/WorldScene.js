@@ -4,7 +4,6 @@ import { WORLD } from "../config.js";
 export class WorldScene extends Phaser.Scene {
   constructor() {
     super("WorldScene");
-    this.keys = null;
     this.touchDirection = { x: 0, y: 0 };
   }
 
@@ -52,8 +51,9 @@ export class WorldScene extends Phaser.Scene {
   }
 
   createWorld() {
-    const tile = 48;
+    const tile = WORLD.tileSize;
     const map = this.add.graphics();
+
     for (let y = 0; y < WORLD.height; y += tile) {
       for (let x = 0; x < WORLD.width; x += tile) {
         const variation = ((x / tile * 13 + y / tile * 7) % 5);
@@ -66,7 +66,6 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
-    // Trilha central e clareira inicial.
     map.fillStyle(0xb99a69, 1);
     map.fillPoints([
       new Phaser.Math.Vector2(0, 510),
@@ -78,6 +77,7 @@ export class WorldScene extends Phaser.Scene {
       new Phaser.Math.Vector2(700, 560),
       new Phaser.Math.Vector2(590, 510)
     ], true);
+
     map.fillStyle(0xc7aa79, 0.55);
     map.fillEllipse(890, 590, 390, 280);
     map.fillStyle(0x397d83, 1);
@@ -85,26 +85,25 @@ export class WorldScene extends Phaser.Scene {
     map.fillStyle(0x5ca0a0, 0.45);
     map.fillEllipse(1430, 235, 300, 95);
 
-    // Detalhes de vegetação e pedras.
     this.obstacles = this.physics.add.staticGroup();
     const treePositions = [
       [170,150],[290,230],[470,120],[620,210],[790,130],[1030,150],[1180,430],
       [1540,500],[1660,680],[1450,900],[1250,1030],[930,990],[620,930],[300,900],
       [120,720],[250,650],[1080,720],[1580,1000],[1720,180],[80,300]
     ];
-    treePositions.forEach(([x,y]) => {
-      const t = this.add.image(x,y,"tree").setOrigin(0.5,0.82);
-      this.obstacles.add(this.physics.add.existing(t, true));
-      t.body.setSize(22, 18).setOffset(13, 29);
-      t.setDepth(y);
+    treePositions.forEach(([x, y]) => {
+      const tree = this.add.image(x, y, "tree").setOrigin(0.5, 0.82);
+      this.obstacles.add(tree);
+      tree.body.setSize(22, 18).setOffset(13, 29);
+      tree.setDepth(y);
     });
 
     const rockPositions = [[390,430],[510,760],[980,350],[1130,850],[350,1040],[1650,820],[760,300]];
-    rockPositions.forEach(([x,y]) => {
-      const r = this.add.image(x,y,"rock");
-      this.obstacles.add(this.physics.add.existing(r, true));
-      r.body.setSize(28, 16).setOffset(4, 8);
-      r.setDepth(y);
+    rockPositions.forEach(([x, y]) => {
+      const rock = this.add.image(x, y, "rock");
+      this.obstacles.add(rock);
+      rock.body.setSize(28, 16).setOffset(4, 8);
+      rock.setDepth(y);
     });
 
     map.setDepth(-10);
@@ -113,13 +112,14 @@ export class WorldScene extends Phaser.Scene {
       stroke: "#354936", strokeThickness: 4, letterSpacing: 2
     }).setOrigin(0.5).setDepth(2);
     this.add.text(1450, 110, "LAGO SERENO", {
-      fontSize: "12px", color: "#d6eeee", stroke: "#28545a", strokeThickness: 4, letterSpacing: 2
+      fontSize: "12px", color: "#d6eeee", stroke: "#28545a",
+      strokeThickness: 4, letterSpacing: 2
     }).setOrigin(0.5).setDepth(2);
   }
 
   createPlayer() {
     this.player = this.physics.add.sprite(820, 610, "hero");
-    this.player.setDepth(1000);
+    this.player.setDepth(this.player.y);
     this.player.setCollideWorldBounds(true);
     this.player.body.setSize(18, 14).setOffset(7, 18);
     this.player.setMaxVelocity(155, 155);
@@ -134,10 +134,12 @@ export class WorldScene extends Phaser.Scene {
       this.add.text(x, y, label, {
         fontSize: "20px", color: "#f5e9c9", fontStyle: "bold"
       }).setOrigin(0.5).setScrollFactor(0).setDepth(3001);
+
       const press = () => { this.touchDirection.x = dx; this.touchDirection.y = dy; };
       const release = () => {
         if (this.touchDirection.x === dx && this.touchDirection.y === dy) {
-          this.touchDirection.x = 0; this.touchDirection.y = 0;
+          this.touchDirection.x = 0;
+          this.touchDirection.y = 0;
         }
       };
       bg.on("pointerdown", press);
@@ -145,26 +147,32 @@ export class WorldScene extends Phaser.Scene {
       bg.on("pointerout", release);
     };
 
-    const left = 58, bottom = this.scale.height - 62;
+    const left = 58;
+    const bottom = this.scale.height - 62;
     makeButton(left, bottom, "↓", 0, 1);
     makeButton(left, bottom - 106, "↑", 0, -1);
     makeButton(left - 52, bottom - 53, "←", -1, 0);
     makeButton(left + 52, bottom - 53, "→", 1, 0);
-    this.scale.on("resize", () => this.scene.restart());
   }
 
   createHud() {
-    const panel = this.add.rectangle(18, 18, 270, 58, 0x14211f, 0.84)
+    this.add.rectangle(18, 18, 270, 58, 0x14211f, 0.84)
       .setOrigin(0).setScrollFactor(0).setDepth(4000)
       .setStrokeStyle(1, 0xbda46d, 0.75);
+
     this.add.text(32, 27, "VIAJANTE  •  NÍVEL 1", {
       fontSize: "12px", color: "#e8d8ad", fontStyle: "bold", letterSpacing: 1
     }).setScrollFactor(0).setDepth(4001);
-    this.add.rectangle(32, 51, 180, 8, 0x39463c).setOrigin(0).setScrollFactor(0).setDepth(4001);
-    this.add.rectangle(32, 51, 180, 8, 0x8d4e48).setOrigin(0).setScrollFactor(0).setDepth(4002);
+
+    this.add.rectangle(32, 51, 180, 8, 0x39463c)
+      .setOrigin(0).setScrollFactor(0).setDepth(4001);
+    this.add.rectangle(32, 51, 180, 8, 0x8d4e48)
+      .setOrigin(0).setScrollFactor(0).setDepth(4002);
+
     this.add.text(224, 47, "100/100", {
       fontSize: "10px", color: "#f4edda"
     }).setScrollFactor(0).setDepth(4002);
+
     this.add.text(this.scale.width - 18, 20, "WASD / SETAS", {
       fontSize: "11px", color: "#e8d8ad", backgroundColor: "#14211fcc",
       padding: { x: 9, y: 7 }
@@ -174,17 +182,22 @@ export class WorldScene extends Phaser.Scene {
   update() {
     if (!this.player || !this.keys) return;
     const speed = 145;
-    let x = 0, y = 0;
+    let x = 0;
+    let y = 0;
+
     if (this.keys.A.isDown || this.keys.LEFT.isDown) x -= 1;
     if (this.keys.D.isDown || this.keys.RIGHT.isDown) x += 1;
     if (this.keys.W.isDown || this.keys.UP.isDown) y -= 1;
     if (this.keys.S.isDown || this.keys.DOWN.isDown) y += 1;
+
     if (x === 0 && y === 0) {
       x = this.touchDirection.x;
       y = this.touchDirection.y;
     }
-    const vector = new Phaser.Math.Vector2(x, y).normalize();
-    this.player.setVelocity(vector.x * speed, vector.y * speed);
+
+    const direction = new Phaser.Math.Vector2(x, y).normalize();
+    this.player.setVelocity(direction.x * speed, direction.y * speed);
+    this.player.setDepth(this.player.y);
     if (x < 0) this.player.setFlipX(true);
     else if (x > 0) this.player.setFlipX(false);
   }
